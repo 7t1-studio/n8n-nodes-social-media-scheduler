@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM"],
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": false,
+    "incremental": false,
+    "useUnknownInCatchVariables": false,
+    "preserveConstEnums": true,
+    "removeComments": true
+  },
+  "include": [
+    "credentials/**/*",
+    "nodes/**/*",
+    "nodes/**/*.json"
+  ],
+  "exclude": ["node_modules", "dist", "test", "tools"]
+}

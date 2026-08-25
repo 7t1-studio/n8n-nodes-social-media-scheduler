@@ -1,0 +1,47 @@
+name: Publish to npm
+
+# Publishes with an npm provenance statement, as n8n requires for
+# verified community nodes (mandatory since 2026-05-01).
+#
+# Auth options (either works):
+#   1. npm Trusted Publisher (recommended, no secret): on npmjs.com, add a
+#      Trusted Publisher for this package pointing at
+#      7t1-studio/n8n-nodes-social-media-scheduler, workflow publish.yml.
+#   2. Repo secret NPM_TOKEN (granular token with publish rights).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for provenance + trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # npm >= 11.5 is needed for OIDC trusted publishing
+      - run: npm install -g npm@latest
+
+      - run: corepack enable
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm test
+
+      - run: pnpm build
+
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

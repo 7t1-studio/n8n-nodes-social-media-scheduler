@@ -1,0 +1,15 @@
+# source
+nodes/*.ts
+credentials/*.ts
+test/
+tools/
+gulpfile.js
+tsconfig.json
+.eslintrc.js
+.gitignore
+vitest.config.ts
+
+# build artifacts
+dist/tsconfig.tsbuildinfo
+dist/**/*.js.map
+dist/**/*.d.ts.map

@@ -1,0 +1,86 @@
+{
+  "name": "n8n-nodes-social-media-scheduler",
+  "version": "0.1.0",
+  "description": "n8n community node for social media scheduling — schedule posts, manage a unified inbox and generate AI content across 20 platforms (Instagram, TikTok, X, LinkedIn, YouTube, Facebook, Threads and more). Powered by So-me Studio.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "social-media-scheduler",
+    "social-media",
+    "scheduler",
+    "post-scheduler",
+    "content-calendar",
+    "instagram",
+    "tiktok",
+    "linkedin",
+    "twitter",
+    "youtube",
+    "facebook",
+    "threads",
+    "social-media-management",
+    "automation",
+    "so-me"
+  ],
+  "license": "MIT",
+  "homepage": "https://so-me.studio",
+  "author": {
+    "name": "so-me.studio",
+    "email": "walidmahade@gmail.com",
+    "url": "https://so-me.studio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/7t1-studio/n8n-nodes-social-media-scheduler.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "format": "prettier nodes credentials --write",
+    "lint": "eslint nodes credentials package.json",
+    "lintfix": "eslint nodes credentials package.json --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check-types": "tsc --noEmit",
+    "prepublishOnly": "pnpm build && pnpm lint"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/SoMeStudioApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/SoMeStudio/SoMeStudio.node.js",
+      "dist/nodes/SoMeStudioTrigger/SoMeStudioTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-n8n-nodes-base": "^1.16.3",
+    "gulp": "^5.0.0",
+    "n8n-workflow": "^1.82.0",
+    "prettier": "^3.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "bugs": {
+    "url": "https://github.com/7t1-studio/n8n-nodes-social-media-scheduler/issues"
+  }
+}

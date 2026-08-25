@@ -1,0 +1,14 @@
+{
+	"node": "n8n-nodes-base.soMeStudio",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Marketing", "Communication"],
+	"resources": {
+		"credentialDocumentation": [
+			{ "url": "https://docs.so-me.studio/authentication" }
+		],
+		"primaryDocumentation": [
+			{ "url": "https://docs.so-me.studio" }
+		]
+	}
+}
