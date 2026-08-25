@@ -96,4 +96,4 @@ MIT — see [LICENSE](./LICENSE).
 
 - **Docs:** https://docs.so-me.studio
 - **App:** https://so-me.studio
-- **Issues:** https://github.com/7t1-studio/schedular-app/issues
+- **Issues:** https://github.com/7t1-studio/n8n-nodes-social-media-scheduler/issues
