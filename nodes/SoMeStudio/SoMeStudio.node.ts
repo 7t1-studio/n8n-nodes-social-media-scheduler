@@ -19,12 +19,8 @@ import {
 
 import { executePost, postFields, postOperations } from './descriptions/PostDescription';
 import { executeDraft, draftFields, draftOperations } from './descriptions/DraftDescription';
-import { executeWebhook, webhookFields, webhookOperations } from './descriptions/WebhookDescription';
 import { executeInbox, inboxFields, inboxOperations } from './descriptions/InboxDescription';
 import { executeComment, commentFields, commentOperations } from './descriptions/CommentDescription';
-import { executeAiCaption, aiCaptionFields, aiCaptionOperations } from './descriptions/AiCaptionDescription';
-import { executeAiImage, aiImageFields, aiImageOperations } from './descriptions/AiImageDescription';
-import { executeAiVideo, aiVideoFields, aiVideoOperations } from './descriptions/AiVideoDescription';
 import { executeMedia, mediaFields, mediaOperations } from './descriptions/MediaDescription';
 import { executeAnalytics, analyticsFields, analyticsOperations } from './descriptions/AnalyticsDescription';
 import { executeSavedReply, savedReplyFields, savedReplyOperations } from './descriptions/SavedReplyDescription';
@@ -39,8 +35,7 @@ export class SoMeStudio implements INodeType {
 		version: 1,
 		usableAsTool: true,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description:
-			'Schedule posts, manage inbox, generate AI content, and automate so-me.studio workflows.',
+		description: 'Schedule posts, manage inbox, media, analytics, and social accounts.',
 		defaults: { name: 'so-me studio - Social media management' },
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
@@ -53,9 +48,6 @@ export class SoMeStudio implements INodeType {
 				noDataExpression: true,
 				default: 'post',
 				options: [
-					{ name: 'AI Caption', value: 'aiCaption' },
-					{ name: 'AI Image', value: 'aiImage' },
-					{ name: 'AI Video', value: 'aiVideo' },
 					{ name: 'Analytics', value: 'analytics' },
 					{ name: 'Comment', value: 'comment' },
 					{ name: 'Draft', value: 'draft' },
@@ -64,25 +56,16 @@ export class SoMeStudio implements INodeType {
 					{ name: 'Post', value: 'post' },
 					{ name: 'Saved Reply', value: 'savedReply' },
 					{ name: 'Social Account', value: 'socialAccount' },
-					{ name: 'Webhook', value: 'webhook' },
 				],
 			},
 			...postOperations,
 			...postFields,
 			...draftOperations,
 			...draftFields,
-			...webhookOperations,
-			...webhookFields,
 			...inboxOperations,
 			...inboxFields,
 			...commentOperations,
 			...commentFields,
-			...aiCaptionOperations,
-			...aiCaptionFields,
-			...aiImageOperations,
-			...aiImageFields,
-			...aiVideoOperations,
-			...aiVideoFields,
 			...mediaOperations,
 			...mediaFields,
 			...analyticsOperations,
@@ -116,12 +99,8 @@ export class SoMeStudio implements INodeType {
 				switch (resource) {
 					case 'post':           result = await executePost.call(this, operation, i); break;
 					case 'draft':          result = await executeDraft.call(this, operation, i); break;
-					case 'webhook':        result = await executeWebhook.call(this, operation, i); break;
 					case 'inbox':          result = await executeInbox.call(this, operation, i); break;
 					case 'comment':        result = await executeComment.call(this, operation, i); break;
-					case 'aiCaption':      result = await executeAiCaption.call(this, operation, i); break;
-					case 'aiImage':        result = await executeAiImage.call(this, operation, i); break;
-					case 'aiVideo':        result = await executeAiVideo.call(this, operation, i); break;
 					case 'media':          result = await executeMedia.call(this, operation, i); break;
 					case 'analytics':      result = await executeAnalytics.call(this, operation, i); break;
 					case 'savedReply':     result = await executeSavedReply.call(this, operation, i); break;

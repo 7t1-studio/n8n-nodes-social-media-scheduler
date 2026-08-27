@@ -32,19 +32,15 @@ This package ships two nodes:
 
 | Node | Purpose |
 |---|---|
-| **so-me studio - Social media management** | Action node — perform operations on Posts, Drafts, Inbox, Comments, Media, AI generation, Analytics, Saved Replies, Social Accounts, and Webhook subscriptions. |
+| **so-me studio - Social media management** | Action node — perform operations on Posts, Drafts, Inbox, Comments, Media, Analytics, Saved Replies, and Social Accounts. |
 | **so-me.studio Trigger** | Webhook trigger — fire a workflow when posts publish, comments arrive, AI generation completes, or any of 40+ other events. HMAC-SHA256 verified. |
 
-## Resources & operations (Top 12)
+## Resources & operations
 
 - **Post** — create, get, list, update, delete, schedule, unschedule, retry, resubmit, bulk delete, calendar
 - **Draft** — create, get, list, update, delete, convert to post
-- **Webhook** — create / list / update / delete subscription, test, retry delivery, list events
 - **Inbox** — list conversations, get messages, reply, update, delete, subscribe / unsubscribe accounts
 - **Comment** — list, add, update, delete, mark-read
-- **AI Caption** — generate text, generate JSON, get history
-- **AI Image** — generate, get, list, delete
-- **AI Video / UGC** — generate, get, list, delete, list avatars, list sounds
 - **Media** — upload (binary input), presign upload, list, search, delete, bulk delete, move, rename, folder CRUD
 - **Analytics** — platform, post, Twitter/X, LinkedIn, Instagram, Facebook, YouTube, WhatsApp
 - **Saved Reply** — create, get, list, update, delete
@@ -56,10 +52,9 @@ This package ships two nodes:
 
 ## Example workflows
 
-### 1. RSS → AI caption → schedule
+### 1. RSS → create a draft
 **Trigger:** RSS Feed Read (built-in)
-**Step 2:** so-me studio - Social media management → AI Caption → Generate Text → prompt = `"Write a Twitter post about: {{$json.title}}"`
-**Step 3:** so-me studio - Social media management → Post → Create → text = `{{$json.text}}`, platform = `TWITTER`, scheduledAt = `{{$now.plus({hours: 2}).toISO()}}`
+**Step 2:** so-me studio - Social media management → Draft → Create → text = `{{$json.title}}\n\n{{$json.link}}`
 
 ### 2. New comment → Slack
 **Trigger:** so-me.studio Trigger → events = `post.published`, `inbox.comment_received`
