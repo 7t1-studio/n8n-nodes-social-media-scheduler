@@ -32,7 +32,7 @@ import { executeSocialAccount, socialAccountFields, socialAccountOperations } fr
 
 export class SoMeStudio implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'so-me.studio',
+		displayName: 'so-me studio - Social media management',
 		name: 'soMeStudio',
 		icon: { light: 'file:somestudio.svg', dark: 'file:somestudio.dark.svg' },
 		group: ['output'],
@@ -41,7 +41,7 @@ export class SoMeStudio implements INodeType {
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description:
 			'Schedule posts, manage inbox, generate AI content, and automate so-me.studio workflows.',
-		defaults: { name: 'so-me.studio' },
+		defaults: { name: 'so-me studio - Social media management' },
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'soMeStudioApi', required: true }],

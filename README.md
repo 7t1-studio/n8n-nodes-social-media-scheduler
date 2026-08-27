@@ -32,7 +32,7 @@ This package ships two nodes:
 
 | Node | Purpose |
 |---|---|
-| **so-me.studio** | Action node — perform operations on Posts, Drafts, Inbox, Comments, Media, AI generation, Analytics, Saved Replies, Social Accounts, and Webhook subscriptions. |
+| **so-me studio - Social media management** | Action node — perform operations on Posts, Drafts, Inbox, Comments, Media, AI generation, Analytics, Saved Replies, Social Accounts, and Webhook subscriptions. |
 | **so-me.studio Trigger** | Webhook trigger — fire a workflow when posts publish, comments arrive, AI generation completes, or any of 40+ other events. HMAC-SHA256 verified. |
 
 ## Resources & operations (Top 12)
@@ -58,8 +58,8 @@ This package ships two nodes:
 
 ### 1. RSS → AI caption → schedule
 **Trigger:** RSS Feed Read (built-in)
-**Step 2:** so-me.studio → AI Caption → Generate Text → prompt = `"Write a Twitter post about: {{$json.title}}"`
-**Step 3:** so-me.studio → Post → Create → text = `{{$json.text}}`, platform = `TWITTER`, scheduledAt = `{{$now.plus({hours: 2}).toISO()}}`
+**Step 2:** so-me studio - Social media management → AI Caption → Generate Text → prompt = `"Write a Twitter post about: {{$json.title}}"`
+**Step 3:** so-me studio - Social media management → Post → Create → text = `{{$json.text}}`, platform = `TWITTER`, scheduledAt = `{{$now.plus({hours: 2}).toISO()}}`
 
 ### 2. New comment → Slack
 **Trigger:** so-me.studio Trigger → events = `post.published`, `inbox.comment_received`
@@ -67,7 +67,7 @@ This package ships two nodes:
 
 ### 3. Weekly analytics digest → email
 **Trigger:** Schedule Trigger (weekly Monday 8am)
-**Step 2:** so-me.studio → Analytics → Platform Analytics → loop over each connected account
+**Step 2:** so-me studio - Social media management → Analytics → Platform Analytics → loop over each connected account
 **Step 3:** Format → Send Email
 
 ## Development
