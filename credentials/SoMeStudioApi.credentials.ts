@@ -10,7 +10,7 @@ export class SoMeStudioApi implements ICredentialType {
 
 	displayName = 'So-me.studio API';
 
-	icon = 'file:somestudio.svg' as const;
+	icon = 'file:somestudio-favicon.svg' as const;
 
 	documentationUrl = 'https://docs.so-me.studio/authentication';
 

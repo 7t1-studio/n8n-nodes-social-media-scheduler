@@ -23,7 +23,10 @@ export class SoMeStudioTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'so-me.studio Trigger',
 		name: 'soMeStudioTrigger',
-		icon: { light: 'file:somestudio.svg', dark: 'file:somestudio.dark.svg' },
+		icon: {
+			light: 'file:somestudio-favicon.svg',
+			dark: 'file:somestudio-favicon.dark.svg',
+		},
 		group: ['trigger'],
 		version: 1,
 		subtitle: '={{$parameter["events"].join(", ")}}',

@@ -30,7 +30,10 @@ export class SoMeStudio implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'so-me studio - Social media management',
 		name: 'soMeStudio',
-		icon: { light: 'file:somestudio.svg', dark: 'file:somestudio.dark.svg' },
+		icon: {
+			light: 'file:somestudio-favicon.svg',
+			dark: 'file:somestudio-favicon.dark.svg',
+		},
 		group: ['output'],
 		version: 1,
 		usableAsTool: true,
