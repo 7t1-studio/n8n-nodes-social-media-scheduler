@@ -33,7 +33,7 @@ export async function soMeApiRequest(
 	body: IDataObject | IDataObject[] | undefined = undefined,
 	qs: IDataObject = {},
 	overrideOptions: Partial<IHttpRequestOptions> = {},
-): Promise<any> {
+): Promise<IDataObject | IDataObject[]> {
 	const credentials = await this.getCredentials('soMeStudioApi');
 	const baseUrl = (credentials.baseUrl as string) || 'https://api.so-me.studio';
 
@@ -54,7 +54,11 @@ export async function soMeApiRequest(
 	}
 
 	try {
-		return await this.helpers.requestWithAuthentication.call(this, 'soMeStudioApi', options);
+		return (await this.helpers.httpRequestWithAuthentication.call(
+			this,
+			'soMeStudioApi',
+			options,
+		)) as IDataObject | IDataObject[];
 	} catch (error) {
 		throw mapError.call(this, error);
 	}
@@ -76,7 +80,7 @@ export async function soMeApiRequestAllItems<T = IDataObject>(
 			...qs,
 			page,
 			limit: pageSize,
-		})) as PaginatedResponse<T>;
+		})) as unknown as PaginatedResponse<T>;
 
 		const batch = Array.isArray(response?.data) ? response.data : [];
 		items.push(...batch);
@@ -88,10 +92,15 @@ export async function soMeApiRequestAllItems<T = IDataObject>(
 	return items;
 }
 
-function mapError(this: ApiContext, error: any): NodeApiError {
-	const status = error?.statusCode ?? error?.response?.statusCode;
+function mapError(this: ApiContext, error: unknown): NodeApiError {
+	const errorObject = error as {
+		statusCode?: number;
+		response?: { statusCode?: number; body?: unknown; data?: unknown };
+		error?: unknown;
+	};
+	const status = errorObject.statusCode ?? errorObject.response?.statusCode;
 	const responseBody =
-		error?.response?.body ?? error?.response?.data ?? error?.error ?? error;
+		errorObject.response?.body ?? errorObject.response?.data ?? errorObject.error ?? error;
 
 	const friendly = friendlyMessage(status, responseBody);
 
@@ -101,9 +110,16 @@ function mapError(this: ApiContext, error: any): NodeApiError {
 	});
 }
 
-function friendlyMessage(status: number | undefined, body: any): string {
+function friendlyMessage(status: number | undefined, body: unknown): string {
+	const bodyObject = body as { message?: unknown; error?: unknown } | null;
 	const apiMsg =
-		(typeof body === 'object' && (body?.message || body?.error)) ||
+		(typeof body === 'object' &&
+			bodyObject &&
+			(typeof bodyObject.message === 'string'
+				? bodyObject.message
+				: typeof bodyObject.error === 'string'
+					? bodyObject.error
+					: undefined)) ||
 		(typeof body === 'string' ? body : undefined);
 
 	switch (status) {

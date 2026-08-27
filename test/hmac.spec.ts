@@ -8,8 +8,8 @@ import { createHmac } from 'crypto';
  * The trigger node MUST verify signatures the same way the backend signs them,
  * otherwise valid deliveries will be rejected (or invalid ones accepted).
  */
-function backendSign(body: string, secret: string): string {
-	return createHmac('sha256', secret).update(body).digest('hex');
+function backendSign(body: string, signingKey: string): string {
+	return createHmac('sha256', signingKey).update(body).digest('hex');
 }
 
 import { categoriesForEvents } from '../nodes/SoMeStudioTrigger/events';
@@ -22,21 +22,21 @@ describe('webhook signature compatibility', () => {
 			timestamp: '2026-04-25T12:00:00.000Z',
 			data: { id: 'abc-123' },
 		});
-		const secret = 'test-secret-1234567890abcdef';
+		const signingKey = 'test-signing-key'.repeat(2);
 
-		const expected = backendSign(body, secret);
-		const local = createHmac('sha256', secret).update(body).digest('hex');
+		const expected = backendSign(body, signingKey);
+		const local = createHmac('sha256', signingKey).update(body).digest('hex');
 
 		expect(local).toBe(expected);
 		expect(local).toMatch(/^[0-9a-f]{64}$/);
 	});
 
 	it('detects tampered payloads', () => {
-		const secret = 'test-secret-1234567890abcdef';
+		const signingKey = 'test-signing-key'.repeat(2);
 		const original = JSON.stringify({ event: 'post.published', data: { id: 'a' } });
 		const tampered = JSON.stringify({ event: 'post.published', data: { id: 'b' } });
 
-		expect(backendSign(original, secret)).not.toBe(backendSign(tampered, secret));
+		expect(backendSign(original, signingKey)).not.toBe(backendSign(tampered, signingKey));
 	});
 
 	it('detects wrong secrets', () => {

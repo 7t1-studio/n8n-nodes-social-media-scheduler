@@ -34,15 +34,15 @@
   },
   "main": "index.js",
   "scripts": {
-    "build": "tsc && gulp build:icons",
-    "dev": "tsc --watch",
+    "build": "n8n-node build",
+    "dev": "n8n-node dev",
     "format": "prettier nodes credentials --write",
-    "lint": "eslint nodes credentials package.json",
-    "lintfix": "eslint nodes credentials package.json --fix",
+    "lint": "n8n-node lint",
+    "lintfix": "n8n-node lint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "check-types": "tsc --noEmit",
-    "prepublishOnly": "pnpm build && pnpm lint"
+    "prepublishOnly": "pnpm lint && pnpm test && pnpm build"
   },
   "files": [
     "dist"
@@ -59,14 +59,11 @@
     ]
   },
   "devDependencies": {
+    "@n8n/node-cli": "0.45.4",
     "@types/node": "^20.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint": "^8.57.0",
-    "eslint-plugin-n8n-nodes-base": "^1.16.3",
-    "gulp": "^5.0.0",
-    "n8n-workflow": "^1.82.0",
+    "eslint": "9.29.0",
+    "n8n-workflow": "2.16.0",
     "prettier": "^3.6.2",
-    "ts-node": "^10.9.2",
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
   },

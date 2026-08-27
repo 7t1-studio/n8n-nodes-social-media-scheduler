@@ -5,6 +5,7 @@ import {
 	INodeTypeDescription,
 	IWebhookFunctions,
 	IWebhookResponseData,
+	NodeConnectionTypes,
 	NodeOperationError,
 } from 'n8n-workflow';
 import { createHmac, timingSafeEqual } from 'crypto';
@@ -22,7 +23,7 @@ export class SoMeStudioTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'so-me.studio Trigger',
 		name: 'soMeStudioTrigger',
-		icon: 'file:somestudio.svg',
+		icon: { light: 'file:somestudio.svg', dark: 'file:somestudio.dark.svg' },
 		group: ['trigger'],
 		version: 1,
 		subtitle: '={{$parameter["events"].join(", ")}}',
@@ -30,7 +31,7 @@ export class SoMeStudioTrigger implements INodeType {
 			'Starts a workflow when a so-me.studio event fires (post published, inbox message received, AI generation finished, etc.).',
 		defaults: { name: 'so-me.studio Trigger' },
 		inputs: [],
-		outputs: ['main'],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'soMeStudioApi', required: true }],
 		webhooks: [
 			{
@@ -114,7 +115,7 @@ export class SoMeStudioTrigger implements INodeType {
 						events,
 						description,
 					},
-				)) as SubscriptionResponse;
+				)) as unknown as SubscriptionResponse;
 
 				const staticData = this.getWorkflowStaticData('node') as IDataObject;
 				staticData.subscriptionId = subscription.id;
@@ -130,8 +131,9 @@ export class SoMeStudioTrigger implements INodeType {
 
 				try {
 					await soMeApiRequest.call(this, 'DELETE', `/v1/webhooks/subscriptions/${id}`);
-				} catch {
+				} catch (error) {
 					// Subscription may already be gone — treat as cleaned up
+					this.logger.warn(`Unable to delete so-me.studio webhook subscription: ${(error as Error).message}`);
 				}
 
 				delete staticData.subscriptionId;
@@ -150,7 +152,8 @@ export class SoMeStudioTrigger implements INodeType {
 		const staticData = this.getWorkflowStaticData('node') as IDataObject;
 
 		// Resolve raw body. n8n delivers the parsed body in req.body; rawBody for HMAC.
-		const rawBody = (req as any).rawBody?.toString?.('utf8') ?? JSON.stringify(req.body ?? {});
+		const rawBodySource = (req as { rawBody?: Buffer | string }).rawBody;
+		const rawBody = rawBodySource?.toString() ?? JSON.stringify(req.body ?? {});
 
 		if (verifySignature) {
 			const provided = headers['x-webhook-signature'] ?? headers['X-Webhook-Signature'];

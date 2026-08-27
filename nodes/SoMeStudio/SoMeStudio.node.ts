@@ -6,6 +6,7 @@ import {
 	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
+	NodeConnectionTypes,
 	NodeOperationError,
 } from 'n8n-workflow';
 
@@ -33,7 +34,7 @@ export class SoMeStudio implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'so-me.studio',
 		name: 'soMeStudio',
-		icon: 'file:somestudio.svg',
+		icon: { light: 'file:somestudio.svg', dark: 'file:somestudio.dark.svg' },
 		group: ['output'],
 		version: 1,
 		usableAsTool: true,
@@ -41,8 +42,8 @@ export class SoMeStudio implements INodeType {
 		description:
 			'Schedule posts, manage inbox, generate AI content, and automate so-me.studio workflows.',
 		defaults: { name: 'so-me.studio' },
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'soMeStudioApi', required: true }],
 		properties: [
 			{
@@ -130,16 +131,18 @@ export class SoMeStudio implements INodeType {
 				}
 
 				if (Array.isArray(result)) {
-					returnData.push(...result.map((r) => ({ json: r as IDataObject })));
+					returnData.push(
+						...result.map((r) => ({ json: r as IDataObject, pairedItem: { item: i } })),
+					);
 				} else if (result !== undefined && result !== null) {
-					returnData.push({ json: result as IDataObject });
+					returnData.push({ json: result as IDataObject, pairedItem: { item: i } });
 				}
 			} catch (error) {
 				if (this.continueOnFail()) {
 					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
 				}
-				throw error;
+				throw new NodeOperationError(this.getNode(), error as Error, { itemIndex: i });
 			}
 		}
 
