@@ -1,6 +1,6 @@
-# n8n-nodes-social-media-scheduler
+# @social-media-scheduler/n8n-nodes-social-media-scheduler
 
-[![npm version](https://img.shields.io/npm/v/n8n-nodes-social-media-scheduler.svg)](https://www.npmjs.com/package/n8n-nodes-social-media-scheduler)
+[![npm version](https://img.shields.io/npm/v/@social-media-scheduler/n8n-nodes-social-media-scheduler.svg)](https://www.npmjs.com/package/@social-media-scheduler/n8n-nodes-social-media-scheduler)
 
 **Social media scheduling inside n8n.** A community node for
 [So-me Studio](https://so-me.studio) — schedule posts, manage inbox
@@ -13,11 +13,11 @@ Dribbble and more).
 
 ## Installation
 
-In your n8n instance: **Settings → Community Nodes → Install** → enter `n8n-nodes-social-media-scheduler`.
+In your n8n instance: **Settings → Community Nodes → Install** → enter `@social-media-scheduler/n8n-nodes-social-media-scheduler`.
 
 For self-hosted Docker:
 ```bash
-npm install n8n-nodes-social-media-scheduler
+npm install @social-media-scheduler/n8n-nodes-social-media-scheduler
 ```
 
 ## Authentication
@@ -84,7 +84,7 @@ To test in a local n8n instance:
 pnpm build
 npm link
 cd ~/.n8n/custom
-npm link n8n-nodes-social-media-scheduler
+npm link @social-media-scheduler/n8n-nodes-social-media-scheduler
 n8n start
 ```
 
