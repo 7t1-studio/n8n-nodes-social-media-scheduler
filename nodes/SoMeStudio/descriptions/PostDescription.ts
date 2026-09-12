@@ -5,6 +5,12 @@ import {
 	POST_TYPE_OPTIONS,
 	SOCIAL_MEDIA_OPTIONS,
 } from '../types';
+import {
+	applyPostOptions,
+	FIRST_COMMENT_PLATFORMS,
+	THREAD_PLATFORMS,
+	TIKTOK_PRIVACY_LEVEL_OPTIONS,
+} from '../postOptions';
 
 const showFor = (operations: string[]) => ({
 	show: { resource: ['post'], operation: operations },
@@ -153,12 +159,107 @@ export const postFields: INodeProperties[] = [
 		],
 	},
 	{
+		displayName: 'Thread Parts',
+		name: 'threadParts',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true, sortable: true },
+		default: {},
+		displayOptions: showFor(['create', 'update']),
+		description: `Posts that follow the head post, in order. The Text field above is the head post, so the first part here is the second post of the chain. Supported on ${THREAD_PLATFORMS.join(', ')}; any other platform returns an error. Limits per part: TWITTER 280 characters, THREADS 500, BLUESKY 300 graphemes, MASTODON 500; 24 parts at most.`,
+		options: [
+			{
+				name: 'part',
+				displayName: 'Part',
+				values: [
+					{
+						displayName: 'Text',
+						name: 'text',
+						type: 'string',
+						typeOptions: { rows: 3 },
+						default: '',
+						description: 'Text of this part of the chain',
+					},
+					{
+						displayName: 'File IDs',
+						name: 'fileIds',
+						type: 'string',
+						default: '',
+						description: 'Comma-separated media library UUIDs to attach to this part. The file must stay in the library until the post publishes.',
+					},
+				],
+			},
+		],
+	},
+	{
+		displayName: 'First Comment',
+		name: 'firstComment',
+		type: 'string',
+		typeOptions: { rows: 2 },
+		default: '',
+		displayOptions: showFor(['create', 'update']),
+		description: `One comment posted automatically under the post right after it publishes, for hashtags or a link. Supported on ${FIRST_COMMENT_PLATFORMS.join(', ')}; another platform publishes the post without the comment and returns a warning. Leave empty to keep any existing comment. With Thread Parts the comment goes under the last part of the chain.`,
+	},
+	{
+		displayName: 'TikTok Options',
+		name: 'tiktok',
+		type: 'collection',
+		placeholder: 'Add TikTok Option',
+		default: {},
+		displayOptions: showFor(['create', 'update', 'schedule']),
+		description: 'TikTok only. TikTok rejects every post that carries no privacy level. Other platforms ignore these options.',
+		options: [
+			{
+				displayName: 'Allow Comments',
+				name: 'allowComments',
+				type: 'boolean',
+				default: true,
+				description: 'Whether viewers can comment on the post',
+			},
+			{
+				displayName: 'Allow Duet',
+				name: 'allowDuet',
+				type: 'boolean',
+				default: true,
+				description: 'Whether viewers can duet the video. Video only.',
+			},
+			{
+				displayName: 'Allow Stitch',
+				name: 'allowStitch',
+				type: 'boolean',
+				default: true,
+				description: 'Whether viewers can stitch the video. Video only.',
+			},
+			{
+				displayName: 'Brand Content',
+				name: 'brandContentToggle',
+				type: 'boolean',
+				default: false,
+				description: 'Whether the post is a paid partnership that promotes a third-party brand',
+			},
+			{
+				displayName: 'Brand Organic',
+				name: 'brandOrganicToggle',
+				type: 'boolean',
+				default: false,
+				description: "Whether the post promotes the creator's own business",
+			},
+			{
+				displayName: 'Privacy Level',
+				name: 'privacyLevel',
+				type: 'options',
+				default: 'PUBLIC_TO_EVERYONE',
+				options: [...TIKTOK_PRIVACY_LEVEL_OPTIONS],
+				description: 'Who can see the post. Required for TikTok. Check the creator info of the account first — a private account cannot use Public to Everyone, and an unusable value returns an error.',
+			},
+		],
+	},
+	{
 		displayName: 'Metadata',
 		name: 'metaData',
 		type: 'json',
 		default: '',
 		displayOptions: showFor(['create', 'update']),
-		description: 'Platform-specific metadata as JSON (hashtags, mentions, location, first-comment, etc.)',
+		description: 'Platform-specific metadata as JSON (hashtags, mentions, location, etc.). The typed fields above win over the same feature in this JSON.',
 	},
 
 	// ── Update ──────────────────────────────────────────────────
@@ -285,6 +386,12 @@ export async function executePost(
 				body.metaData = typeof metaDataRaw === 'string' ? JSON.parse(metaDataRaw) : metaDataRaw;
 			}
 
+			applyPostOptions(body, {
+				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
+				firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
+				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
+			});
+
 			return await soMeApiRequest.call(this, 'POST', '/v1/posts', body);
 		}
 
@@ -332,6 +439,12 @@ export async function executePost(
 				body.metaData = typeof metaDataRaw === 'string' ? JSON.parse(metaDataRaw) : metaDataRaw;
 			}
 
+			applyPostOptions(body, {
+				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
+				firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
+				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
+			});
+
 			return await soMeApiRequest.call(this, 'PATCH', `/v1/posts/${postId}`, body);
 		}
 
@@ -352,9 +465,9 @@ export async function executePost(
 		case 'schedule': {
 			const postId = this.getNodeParameter('postId', itemIndex) as string;
 			const scheduleFor = this.getNodeParameter('scheduleFor', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'POST', `/v1/posts/${postId}/schedule`, {
-				scheduledAt: scheduleFor,
-			});
+			const body: IDataObject = { scheduledAt: scheduleFor };
+			applyPostOptions(body, { tiktok: this.getNodeParameter('tiktok', itemIndex, {}) });
+			return await soMeApiRequest.call(this, 'POST', `/v1/posts/${postId}/schedule`, body);
 		}
 
 		case 'unschedule': {

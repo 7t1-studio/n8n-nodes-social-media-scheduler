@@ -1,5 +1,6 @@
 import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
+import { POST_TYPE_OPTIONS, SOCIAL_MEDIA_OPTIONS } from '../types';
 
 const showFor = (operations: string[]) => ({
 	show: { resource: ['media'], operation: operations },
@@ -18,6 +19,7 @@ export const mediaOperations: INodeProperties[] = [
 			{ name: 'Delete', value: 'delete', action: 'Delete a file' },
 			{ name: 'Delete Folder', value: 'deleteFolder', action: 'Delete a folder' },
 			{ name: 'Get Many Files', value: 'list', action: 'List files and folders' },
+			{ name: 'Get Rules', value: 'getRules', action: 'Get the media rules table' },
 			{ name: 'Move File', value: 'move', action: 'Move a file to another folder' },
 			{ name: 'Move Folder', value: 'moveFolder', action: 'Move a folder' },
 			{ name: 'Presign Upload', value: 'presignUpload', action: 'Get a presigned upload URL' },
@@ -25,6 +27,7 @@ export const mediaOperations: INodeProperties[] = [
 			{ name: 'Rename Folder', value: 'renameFolder', action: 'Rename a folder' },
 			{ name: 'Search', value: 'search', action: 'Search files by name' },
 			{ name: 'Upload', value: 'upload', action: 'Upload a file from a binary input' },
+			{ name: 'Validate', value: 'validate', action: 'Validate media against every destination' },
 		],
 		default: 'upload',
 	},
@@ -114,6 +117,74 @@ export const mediaFields: INodeProperties[] = [
 					{ displayName: 'MIME Type', name: 'mimetype', type: 'string', default: '' },
 					{ displayName: 'Size (Bytes)', name: 'size', type: 'number', default: 0 },
 				],
+			},
+		],
+	},
+	// Validate
+	{
+		displayName: 'File IDs',
+		name: 'validateFileIds',
+		type: 'string',
+		typeOptions: { rows: 2 },
+		required: true,
+		default: '',
+		displayOptions: showFor(['validate']),
+		description: 'Comma- or newline-separated media library UUIDs to check. Every file is measured from its own bytes.',
+	},
+	{
+		displayName: 'Targets',
+		name: 'targets',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		default: {},
+		displayOptions: showFor(['validate']),
+		description: 'Destinations to check the files against. Each result reports status, limits, issues and warnings. A dimension or aspect-ratio issue carries measured, required, fix and suggestedDimensions, so a workflow can crop the file to a size the platform accepts.',
+		options: [
+			{
+				name: 'target',
+				displayName: 'Target',
+				values: [
+					{
+						displayName: 'Platform',
+						name: 'socialMedia',
+						type: 'options',
+						default: 'INSTAGRAM',
+						options: [...SOCIAL_MEDIA_OPTIONS],
+					},
+					{
+						displayName: 'Post Type',
+						name: 'postType',
+						type: 'options',
+						default: 'IMAGE',
+						options: [...POST_TYPE_OPTIONS],
+					},
+				],
+			},
+		],
+	},
+	// Rules
+	{
+		displayName: 'Rule Filters',
+		name: 'ruleFilters',
+		type: 'collection',
+		placeholder: 'Add Filter',
+		default: {},
+		displayOptions: showFor(['getRules']),
+		description: 'Narrow the returned rules table. Without a filter the whole table is returned: allowed types, file and total size, count, duration, width, height, aspect ratio, video codecs and frame rate per platform and post type.',
+		options: [
+			{
+				displayName: 'Platform',
+				name: 'socialMedia',
+				type: 'options',
+				default: 'INSTAGRAM',
+				options: [...SOCIAL_MEDIA_OPTIONS],
+			},
+			{
+				displayName: 'Post Type',
+				name: 'postType',
+				type: 'options',
+				default: 'IMAGE',
+				options: [...POST_TYPE_OPTIONS],
 			},
 		],
 	},
@@ -244,6 +315,22 @@ export async function executeMedia(
 				socialMedia,
 				files,
 			});
+		}
+		case 'validate': {
+			const idsRaw = this.getNodeParameter('validateFileIds', itemIndex) as string;
+			const fileIds = idsRaw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+			const targetsParam = this.getNodeParameter('targets', itemIndex, {}) as { target?: IDataObject[] };
+			return await soMeApiRequest.call(this, 'POST', '/v1/media/validate', {
+				fileIds,
+				targets: targetsParam.target ?? [],
+			});
+		}
+		case 'getRules': {
+			const filters = this.getNodeParameter('ruleFilters', itemIndex, {}) as IDataObject;
+			const qs: IDataObject = {};
+			if (filters.socialMedia) qs.socialMedia = filters.socialMedia;
+			if (filters.postType) qs.postType = filters.postType;
+			return await soMeApiRequest.call(this, 'GET', '/v1/media/rules', undefined, qs);
 		}
 		case 'list': {
 			const returnAll = this.getNodeParameter('returnAll', itemIndex, false) as boolean;
