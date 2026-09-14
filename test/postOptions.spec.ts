@@ -5,16 +5,16 @@ import {
 	buildFirstComment,
 	buildThreadParts,
 	buildTikTokOptions,
-} from '../nodes/SoMeStudio/postOptions';
+} from '../nodes/SocialMediaStudio/postOptions';
 
 const requestMock = vi.fn();
 
-vi.mock('../nodes/SoMeStudio/GenericFunctions', () => ({
+vi.mock('../nodes/SocialMediaStudio/GenericFunctions', () => ({
 	soMeApiRequest: (...args: unknown[]) => requestMock(...args),
 	soMeApiRequestAllItems: (...args: unknown[]) => requestMock(...args),
 }));
 
-import { executePost } from '../nodes/SoMeStudio/descriptions/PostDescription';
+import { executePost } from '../nodes/SocialMediaStudio/descriptions/PostDescription';
 
 /** Minimal IExecuteFunctions stand-in: reads parameters from a plain map. */
 function context(params: Record<string, unknown>) {
