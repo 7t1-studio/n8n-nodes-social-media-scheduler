@@ -41,10 +41,32 @@ This package ships two nodes:
 
 - **Post** — create, get, list, update, delete, schedule, unschedule, retry, resubmit, bulk delete, calendar
 - **Draft** — create, get, list, update, delete, convert to post
-- **Media** — upload (binary input), presign upload, list, search, delete, bulk delete, move, rename, folder CRUD
+- **Inbox** — list conversations, get messages, reply, update, delete, subscribe / unsubscribe accounts
+- **Comment** — list, add, update, delete, mark-read
+- **Media** — upload (binary input), presign upload, list, search, validate, get rules, delete, bulk delete, move, rename, folder CRUD
+- **Analytics** — platform, post, Twitter/X, LinkedIn, Instagram, Facebook, YouTube, WhatsApp
+- **Saved Reply** — create, get, list, update, delete
 - **Social Account** — get, list
 
-Analytics, Comments, Inbox, and Saved Replies are retained for a future release; see [FUTURE_RELEASE.md](./FUTURE_RELEASE.md).
+## Post options
+
+The **Post** resource exposes three typed fields next to the free-form **Metadata** JSON. A typed field wins over the same feature written into that JSON.
+
+| Field | Operations | What it does |
+|---|---|---|
+| **Thread Parts** | Create, Update | Publishes a chain. The **Text** field is the head post and each part follows it, in order. Each part takes text, a comma-separated list of media library file IDs, or both. Supported on TWITTER, THREADS, BLUESKY and MASTODON; another platform returns an error. Limits per part: TWITTER 280 characters, THREADS 500, BLUESKY 300 graphemes, MASTODON 500, and 24 parts at most. Publishing is best effort past the head post: the response carries a warning when the chain stops early. |
+| **First Comment** | Create, Update | Posts one comment under the post right after it publishes — hashtags or a link you keep out of the caption. Supported on FACEBOOK, INSTAGRAM, TWITTER, LINKEDIN, LINKEDIN_PAGE, THREADS and YOUTUBE, each with its own length limit. Another platform publishes the post without the comment and returns `warnings: [{ code: "FIRST_COMMENT_UNSUPPORTED" }]`. With **Thread Parts** the comment goes under the last part of the chain. |
+| **TikTok Options** | Create, Update, Schedule | Privacy Level, Allow Comments, Allow Duet, Allow Stitch, Brand Content and Brand Organic. |
+
+### TikTok note
+
+TikTok rejects every post that carries no privacy level, and only the creator may choose one. Set **Privacy Level** on every TikTok post. A missing value returns HTTP 400 `TIKTOK_PRIVACY_LEVEL_REQUIRED` with the `privacyLevelOptions` the account may use. Read the creator info of the account first: a private account cannot use `PUBLIC_TO_EVERYONE`, and a level the creator cannot use returns `TIKTOK_PRIVACY_LEVEL_NOT_ALLOWED`. The options are ignored on every other platform.
+
+Social accounts report what they support. **Social Account → Get / List** returns `capabilities`, for example `{ "firstComment": true, "firstCommentMaxLength": 280, "threads": true, "threadPartMaxLength": 280 }`.
+
+## Media validation
+
+**Media → Validate** checks media library files against every destination before you post. Each result carries the destination limits, the issues and the warnings. A dimension or aspect-ratio issue reports `measured`, `required`, a `fix` string and `suggestedDimensions`, so a workflow can crop the file to a size the platform accepts. **Media → Get Rules** returns the rules table itself — allowed types, file and total size, count, duration, width, height, aspect ratio, video codecs and frame rate — and accepts an optional platform and post type filter.
 
 ## Trigger events
 
