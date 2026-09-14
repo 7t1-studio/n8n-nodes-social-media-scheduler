@@ -1,10 +1,10 @@
-# @social-media-scheduler/n8n-nodes-social-media-scheduler
+# Social media studio for n8n
 
-[![npm version](https://img.shields.io/npm/v/@social-media-scheduler/n8n-nodes-social-media-scheduler.svg)](https://www.npmjs.com/package/@social-media-scheduler/n8n-nodes-social-media-scheduler)
+[![npm version](https://img.shields.io/npm/v/@social-media-scheduler/n8n-nodes-social-media-studio.svg)](https://www.npmjs.com/package/@social-media-scheduler/n8n-nodes-social-media-studio)
 
-**Social media scheduling inside n8n.** A community node for
-[So-me Studio](https://so-me.studio) — schedule posts, manage inbox
-conversations, generate AI content and automate social-media operations across
+**Social media scheduling inside n8n.** A focused community node for
+[So-me Studio](https://so-me.studio) — create drafts, schedule posts, manage media,
+and automate publishing across
 20 platforms (X/Twitter, LinkedIn, Instagram, Facebook, TikTok, YouTube,
 Threads, WhatsApp, Pinterest, Bluesky, Mastodon, Reddit, Discord, Slack,
 Dribbble and more).
@@ -13,18 +13,20 @@ Dribbble and more).
 
 ## Installation
 
-In your n8n instance: **Settings → Community Nodes → Install** → enter `@social-media-scheduler/n8n-nodes-social-media-scheduler`.
+This connector is not published yet. The commands below use the package name planned for the first release; use the local development steps until it is published.
+
+In your n8n instance: **Settings → Community Nodes → Install** → enter `@social-media-scheduler/n8n-nodes-social-media-studio`.
 
 For self-hosted Docker:
 ```bash
-npm install @social-media-scheduler/n8n-nodes-social-media-scheduler
+npm install @social-media-scheduler/n8n-nodes-social-media-studio
 ```
 
 ## Authentication
 
 1. Sign in to https://so-me.studio.
 2. Go to **Settings → API Keys** and create a new key.
-3. In n8n, create a new credential of type **so-me.studio API** and paste the key.
+3. In n8n, create a new credential of type **Social media studio API** and paste the key.
 
 ## What's included
 
@@ -32,38 +34,31 @@ This package ships two nodes:
 
 | Node | Purpose |
 |---|---|
-| **so-me studio - Social media management** | Action node — perform operations on Posts, Drafts, Inbox, Comments, Media, Analytics, Saved Replies, and Social Accounts. |
-| **so-me.studio Trigger** | Webhook trigger — fire a workflow when posts publish, comments arrive, AI generation completes, or any of 40+ other events. HMAC-SHA256 verified. |
+| **Social media studio** | Action node for Posts, Drafts, Media, and Social Accounts. |
+| **Social media studio Trigger** | HMAC-SHA256 verified trigger for essential publishing events. |
 
 ## Resources & operations
 
 - **Post** — create, get, list, update, delete, schedule, unschedule, retry, resubmit, bulk delete, calendar
 - **Draft** — create, get, list, update, delete, convert to post
-- **Inbox** — list conversations, get messages, reply, update, delete, subscribe / unsubscribe accounts
-- **Comment** — list, add, update, delete, mark-read
 - **Media** — upload (binary input), presign upload, list, search, delete, bulk delete, move, rename, folder CRUD
-- **Analytics** — platform, post, Twitter/X, LinkedIn, Instagram, Facebook, YouTube, WhatsApp
-- **Saved Reply** — create, get, list, update, delete
 - **Social Account** — get, list
+
+Analytics, Comments, Inbox, and Saved Replies are retained for a future release; see [FUTURE_RELEASE.md](./FUTURE_RELEASE.md).
 
 ## Trigger events
 
-40+ events grouped by category — `post.*`, `draft.*`, `inbox.*`, `media.*`, `ai.*`, `analytics.*`, `social.*`, `quota.*`. The trigger node creates a webhook subscription against the configured n8n webhook URL on activation, captures the per-subscription `secret`, and verifies every incoming POST with HMAC-SHA256 to match the backend's signing scheme.
+The initial release exposes `post.created`, `post.scheduled`, `post.published`, `post.failed`, `draft.converted`, and `quota.limit_reached`. The trigger node creates a webhook subscription against the configured n8n webhook URL on activation, captures the per-subscription `secret`, and verifies every incoming POST with HMAC-SHA256 to match the backend's signing scheme.
 
 ## Example workflows
 
 ### 1. RSS → create a draft
 **Trigger:** RSS Feed Read (built-in)
-**Step 2:** so-me studio - Social media management → Draft → Create → text = `{{$json.title}}\n\n{{$json.link}}`
+**Step 2:** Social media studio → Draft → Create → text = `{{$json.title}}\n\n{{$json.link}}`
 
-### 2. New comment → Slack
-**Trigger:** so-me.studio Trigger → events = `post.published`, `inbox.comment_received`
-**Step 2:** Slack → Send Message → channel = `#social`, text = `📥 New ${{$json.event}}: ${{$json.data.text}}`
-
-### 3. Weekly analytics digest → email
-**Trigger:** Schedule Trigger (weekly Monday 8am)
-**Step 2:** so-me studio - Social media management → Analytics → Platform Analytics → loop over each connected account
-**Step 3:** Format → Send Email
+### 2. Failed publication → Slack
+**Trigger:** Social media studio Trigger → event = `post.failed`
+**Step 2:** Slack → Send Message → channel = `#social`, text = `Publication failed: {{$json.data}}`
 
 ## Development
 
@@ -79,7 +74,7 @@ To test in a local n8n instance:
 pnpm build
 npm link
 cd ~/.n8n/custom
-npm link @social-media-scheduler/n8n-nodes-social-media-scheduler
+npm link @social-media-scheduler/n8n-nodes-social-media-studio
 n8n start
 ```
 

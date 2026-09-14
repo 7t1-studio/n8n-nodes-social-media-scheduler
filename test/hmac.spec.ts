@@ -12,7 +12,7 @@ function backendSign(body: string, signingKey: string): string {
 	return createHmac('sha256', signingKey).update(body).digest('hex');
 }
 
-import { categoriesForEvents } from '../nodes/SoMeStudioTrigger/events';
+import { categoriesForEvents } from '../nodes/SocialMediaStudioTrigger/events';
 
 describe('webhook signature compatibility', () => {
 	it('produces the same digest as the backend dispatcher', () => {

@@ -1,5 +1,5 @@
 {
-	"node": "n8n-nodes-base.soMeStudio",
+	"node": "@social-media-scheduler/n8n-nodes-social-media-studio.socialMediaStudio",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Marketing", "Communication"],

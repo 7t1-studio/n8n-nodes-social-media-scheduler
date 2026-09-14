@@ -9,7 +9,7 @@ import {
 	NodeOperationError,
 } from 'n8n-workflow';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { soMeApiRequest } from '../SoMeStudio/GenericFunctions';
+import { soMeApiRequest } from '../SocialMediaStudio/GenericFunctions';
 import { categoriesForEvents, eventOptionsForTrigger } from './events';
 
 interface SubscriptionResponse {
@@ -19,10 +19,10 @@ interface SubscriptionResponse {
 	events?: string[];
 }
 
-export class SoMeStudioTrigger implements INodeType {
+export class SocialMediaStudioTrigger implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'so-me.studio Trigger',
-		name: 'soMeStudioTrigger',
+		displayName: 'Social media studio Trigger',
+		name: 'socialMediaStudioTrigger',
 		icon: {
 			light: 'file:somestudio-favicon.svg',
 			dark: 'file:somestudio-favicon.dark.svg',
@@ -31,11 +31,11 @@ export class SoMeStudioTrigger implements INodeType {
 		version: 1,
 		subtitle: '={{$parameter["events"].join(", ")}}',
 		description:
-			'Starts a workflow when a so-me.studio event fires (post published, inbox message received, AI generation finished, etc.).',
-		defaults: { name: 'so-me.studio Trigger' },
+			'Starts a workflow for essential publishing events such as a post being scheduled, published, or failing.',
+		defaults: { name: 'Social media studio Trigger' },
 		inputs: [],
 		outputs: [NodeConnectionTypes.Main],
-		credentials: [{ name: 'soMeStudioApi', required: true }],
+		credentials: [{ name: 'socialMediaStudioApi', required: true }],
 		webhooks: [
 			{
 				name: 'default',

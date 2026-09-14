@@ -5,10 +5,11 @@ import {
 	INodeProperties,
 } from 'n8n-workflow';
 
-export class SoMeStudioApi implements ICredentialType {
-	name = 'soMeStudioApi';
+export class SocialMediaStudioApi implements ICredentialType {
+	name = 'socialMediaStudioApi';
 
-	displayName = 'So-me.studio API';
+	// eslint-disable-next-line n8n-nodes-base/cred-class-field-display-name-miscased -- Use the exact product brand shared by all three connectors.
+	displayName = 'Social media studio API';
 
 	icon = 'file:somestudio-favicon.svg' as const;
 

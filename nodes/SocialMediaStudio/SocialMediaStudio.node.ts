@@ -12,24 +12,18 @@ import {
 
 import {
 	getMediaFolders,
-	getSavedReplies,
 	getSocialAccounts,
-	getTemplates,
 } from './methods/loadOptions';
 
 import { executePost, postFields, postOperations } from './descriptions/PostDescription';
 import { executeDraft, draftFields, draftOperations } from './descriptions/DraftDescription';
-import { executeInbox, inboxFields, inboxOperations } from './descriptions/InboxDescription';
-import { executeComment, commentFields, commentOperations } from './descriptions/CommentDescription';
 import { executeMedia, mediaFields, mediaOperations } from './descriptions/MediaDescription';
-import { executeAnalytics, analyticsFields, analyticsOperations } from './descriptions/AnalyticsDescription';
-import { executeSavedReply, savedReplyFields, savedReplyOperations } from './descriptions/SavedReplyDescription';
 import { executeSocialAccount, socialAccountFields, socialAccountOperations } from './descriptions/SocialAccountDescription';
 
-export class SoMeStudio implements INodeType {
+export class SocialMediaStudio implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'so-me studio - Social media management',
-		name: 'soMeStudio',
+		displayName: 'Social media studio',
+		name: 'socialMediaStudio',
 		icon: {
 			light: 'file:somestudio-favicon.svg',
 			dark: 'file:somestudio-favicon.dark.svg',
@@ -38,11 +32,11 @@ export class SoMeStudio implements INodeType {
 		version: 1,
 		usableAsTool: true,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Schedule posts, manage inbox, media, analytics, and social accounts.',
-		defaults: { name: 'so-me studio - Social media management' },
+		description: 'Create and schedule posts, drafts, and media across your connected social accounts.',
+		defaults: { name: 'Social media studio' },
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
-		credentials: [{ name: 'soMeStudioApi', required: true }],
+		credentials: [{ name: 'socialMediaStudioApi', required: true }],
 		properties: [
 			{
 				displayName: 'Resource',
@@ -51,13 +45,9 @@ export class SoMeStudio implements INodeType {
 				noDataExpression: true,
 				default: 'post',
 				options: [
-					{ name: 'Analytics', value: 'analytics' },
-					{ name: 'Comment', value: 'comment' },
 					{ name: 'Draft', value: 'draft' },
-					{ name: 'Inbox', value: 'inbox' },
 					{ name: 'Media', value: 'media' },
 					{ name: 'Post', value: 'post' },
-					{ name: 'Saved Reply', value: 'savedReply' },
 					{ name: 'Social Account', value: 'socialAccount' },
 				],
 			},
@@ -65,16 +55,8 @@ export class SoMeStudio implements INodeType {
 			...postFields,
 			...draftOperations,
 			...draftFields,
-			...inboxOperations,
-			...inboxFields,
-			...commentOperations,
-			...commentFields,
 			...mediaOperations,
 			...mediaFields,
-			...analyticsOperations,
-			...analyticsFields,
-			...savedReplyOperations,
-			...savedReplyFields,
 			...socialAccountOperations,
 			...socialAccountFields,
 		],
@@ -84,8 +66,6 @@ export class SoMeStudio implements INodeType {
 		loadOptions: {
 			getSocialAccounts,
 			getMediaFolders,
-			getTemplates,
-			getSavedReplies,
 		} as Record<string, (this: ILoadOptionsFunctions) => Promise<INodePropertyOptions[]>>,
 	};
 
@@ -102,11 +82,7 @@ export class SoMeStudio implements INodeType {
 				switch (resource) {
 					case 'post':           result = await executePost.call(this, operation, i); break;
 					case 'draft':          result = await executeDraft.call(this, operation, i); break;
-					case 'inbox':          result = await executeInbox.call(this, operation, i); break;
-					case 'comment':        result = await executeComment.call(this, operation, i); break;
 					case 'media':          result = await executeMedia.call(this, operation, i); break;
-					case 'analytics':      result = await executeAnalytics.call(this, operation, i); break;
-					case 'savedReply':     result = await executeSavedReply.call(this, operation, i); break;
 					case 'socialAccount':  result = await executeSocialAccount.call(this, operation, i); break;
 					default:
 						throw new NodeOperationError(this.getNode(), `Unknown resource: ${resource}`);

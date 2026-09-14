@@ -34,7 +34,7 @@ export async function soMeApiRequest(
 	qs: IDataObject = {},
 	overrideOptions: Partial<IHttpRequestOptions> = {},
 ): Promise<IDataObject | IDataObject[]> {
-	const credentials = await this.getCredentials('soMeStudioApi');
+	const credentials = await this.getCredentials('socialMediaStudioApi');
 	const baseUrl = (credentials.baseUrl as string) || 'https://api.so-me.studio';
 
 	const options: IHttpRequestOptions = {
@@ -56,7 +56,7 @@ export async function soMeApiRequest(
 	try {
 		return (await this.helpers.httpRequestWithAuthentication.call(
 			this,
-			'soMeStudioApi',
+			'socialMediaStudioApi',
 			options,
 		)) as IDataObject | IDataObject[];
 	} catch (error) {
