@@ -1,5 +1,6 @@
 import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
+import { parseFileIds, postingTool } from '../PostingFunctions';
 import {
 	POST_STATUS_OPTIONS,
 	POST_TYPE_OPTIONS,
@@ -24,23 +25,111 @@ export const postOperations: INodeProperties[] = [
 		noDataExpression: true,
 		displayOptions: { show: { resource: ['post'] } },
 		options: [
-			{ name: 'Bulk Delete', value: 'bulkDelete', description: 'Delete many posts at once', action: 'Bulk delete posts' },
-			{ name: 'Create', value: 'create', description: 'Create a new post', action: 'Create a post' },
-			{ name: 'Delete', value: 'delete', description: 'Delete a post', action: 'Delete a post' },
-			{ name: 'Get', value: 'get', description: 'Get a single post by ID', action: 'Get a post' },
-			{ name: 'Get Calendar', value: 'getCalendar', description: 'Get posts in a date range for calendar view', action: 'Get calendar posts' },
-			{ name: 'Get Many', value: 'getMany', description: 'List posts (paginated)', action: 'Get many posts' },
-			{ name: 'Resubmit', value: 'resubmit', description: 'Resubmit a rejected post for approval', action: 'Resubmit a rejected post' },
-			{ name: 'Retry', value: 'retry', description: 'Retry a failed post', action: 'Retry a failed post' },
-			{ name: 'Schedule', value: 'schedule', description: 'Schedule a post for future publishing', action: 'Schedule a post' },
-			{ name: 'Unschedule', value: 'unschedule', description: 'Remove a post from the schedule', action: 'Unschedule a post' },
-			{ name: 'Update', value: 'update', description: 'Update a post', action: 'Update a post' },
+			{
+				name: 'Bulk Delete',
+				value: 'bulkDelete',
+				description: 'Delete many posts at once',
+				action: 'Bulk delete posts',
+			},
+			{
+				name: 'Create',
+				value: 'create',
+				description: 'Create a new post',
+				action: 'Create a post',
+			},
+			{
+				name: 'Delete',
+				value: 'delete',
+				description: 'Delete a post',
+				action: 'Delete a post',
+			},
+			{
+				name: 'Get',
+				value: 'get',
+				description: 'Get a single post by ID',
+				action: 'Get a post',
+			},
+			{
+				name: 'Get Calendar',
+				value: 'getCalendar',
+				description: 'Get posts in a date range for calendar view',
+				action: 'Get calendar posts',
+			},
+			{
+				name: 'Get Many',
+				value: 'getMany',
+				description: 'List posts (paginated)',
+				action: 'Get many posts',
+			},
+			{
+				name: 'Resubmit',
+				value: 'resubmit',
+				description: 'Resubmit a rejected post for approval',
+				action: 'Resubmit a rejected post',
+			},
+			{
+				name: 'Retry',
+				value: 'retry',
+				description: 'Retry a failed post',
+				action: 'Retry a failed post',
+			},
+			{
+				name: 'Schedule',
+				value: 'schedule',
+				description: 'Schedule a post for future publishing',
+				action: 'Schedule a post',
+			},
+			{
+				name: 'Unschedule',
+				value: 'unschedule',
+				description: 'Remove a post from the schedule',
+				action: 'Unschedule a post',
+			},
+			{
+				name: 'Update',
+				value: 'update',
+				description: 'Update a post',
+				action: 'Update a post',
+			},
 		],
 		default: 'create',
 	},
 ];
 
 export const postFields: INodeProperties[] = [
+	{
+		displayName: 'Media Library File IDs',
+		name: 'libraryFileIds',
+		type: 'string',
+		default: '',
+		displayOptions: showFor(['create', 'update']),
+		description:
+			'Comma-separated uploaded library UUIDs. Use Media → Upload to Library, then verify the upload.',
+	},
+	{
+		displayName: 'Clear Media',
+		name: 'clearMedia',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update']),
+		description: 'Whether to remove all existing media attachments',
+	},
+	{
+		displayName: 'Clear Thread',
+		name: 'clearThread',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update', 'schedule']),
+		description: 'Whether to remove the existing thread parts',
+	},
+	{
+		displayName: 'Clear First Comment',
+		name: 'clearFirstComment',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update', 'schedule']),
+		description: 'Whether to remove the existing first comment',
+	},
 	// ── Common: post ID ─────────────────────────────────────────
 	{
 		displayName: 'Post ID',
@@ -48,7 +137,15 @@ export const postFields: INodeProperties[] = [
 		type: 'string',
 		required: true,
 		default: '',
-		displayOptions: showFor(['get', 'update', 'delete', 'schedule', 'unschedule', 'retry', 'resubmit']),
+		displayOptions: showFor([
+			'get',
+			'update',
+			'delete',
+			'schedule',
+			'unschedule',
+			'retry',
+			'resubmit',
+		]),
 		description: 'UUID of the post',
 	},
 
@@ -88,7 +185,8 @@ export const postFields: INodeProperties[] = [
 		default: '',
 		typeOptions: { loadOptionsMethod: 'getSocialAccounts' },
 		displayOptions: showFor(['create']),
-		description: 'Connected social account to post from. If not set, the workspace default for the platform is used. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+		description:
+			'Connected social account to post from. If not set, the workspace default for the platform is used. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 	},
 	{
 		displayName: 'Schedule For',
@@ -96,7 +194,8 @@ export const postFields: INodeProperties[] = [
 		type: 'dateTime',
 		default: '',
 		displayOptions: showFor(['create']),
-		description: 'ISO 8601 datetime to publish at. Leave empty for immediate publishing.',
+		description:
+			'ISO 8601 datetime to publish at. Leave empty for immediate publishing.',
 	},
 	{
 		displayName: 'Files',
@@ -105,7 +204,8 @@ export const postFields: INodeProperties[] = [
 		typeOptions: { multipleValues: true },
 		default: {},
 		displayOptions: showFor(['create']),
-		description: 'Media files to attach. First call the Media → Presign Upload operation to get s3Prefix + fileSrc.',
+		description:
+			'Media files to attach. First call the Media → Presign Upload operation to get s3Prefix + fileSrc.',
 		options: [
 			{
 				name: 'file',
@@ -152,7 +252,7 @@ export const postFields: INodeProperties[] = [
 						displayName: 'Size (Bytes)',
 						name: 'size',
 						type: 'number',
-						default: 0
+						default: 0,
 					},
 				],
 			},
@@ -164,7 +264,7 @@ export const postFields: INodeProperties[] = [
 		type: 'fixedCollection',
 		typeOptions: { multipleValues: true, sortable: true },
 		default: {},
-		displayOptions: showFor(['create', 'update']),
+		displayOptions: showFor(['create', 'update', 'schedule']),
 		description: `Posts that follow the head post, in order. The Text field above is the head post, so the first part here is the second post of the chain. Supported on ${THREAD_PLATFORMS.join(', ')}; any other platform returns an error. Limits per part: TWITTER 280 characters, THREADS 500, BLUESKY 300 graphemes, MASTODON 500; 24 parts at most.`,
 		options: [
 			{
@@ -184,7 +284,8 @@ export const postFields: INodeProperties[] = [
 						name: 'fileIds',
 						type: 'string',
 						default: '',
-						description: 'Comma-separated media library UUIDs to attach to this part. The file must stay in the library until the post publishes.',
+						description:
+							'Comma-separated media library UUIDs to attach to this part. The file must stay in the library until the post publishes.',
 					},
 				],
 			},
@@ -196,7 +297,7 @@ export const postFields: INodeProperties[] = [
 		type: 'string',
 		typeOptions: { rows: 2 },
 		default: '',
-		displayOptions: showFor(['create', 'update']),
+		displayOptions: showFor(['create', 'update', 'schedule']),
 		description: `One comment posted automatically under the post right after it publishes, for hashtags or a link. Supported on ${FIRST_COMMENT_PLATFORMS.join(', ')}; another platform publishes the post without the comment and returns a warning. Leave empty to keep any existing comment. With Thread Parts the comment goes under the last part of the chain.`,
 	},
 	{
@@ -206,7 +307,8 @@ export const postFields: INodeProperties[] = [
 		placeholder: 'Add TikTok Option',
 		default: {},
 		displayOptions: showFor(['create', 'update', 'schedule']),
-		description: 'TikTok only. TikTok rejects every post that carries no privacy level. Other platforms ignore these options.',
+		description:
+			'TikTok only. TikTok rejects every post that carries no privacy level. Other platforms ignore these options.',
 		options: [
 			{
 				displayName: 'Allow Comments',
@@ -234,7 +336,8 @@ export const postFields: INodeProperties[] = [
 				name: 'brandContentToggle',
 				type: 'boolean',
 				default: false,
-				description: 'Whether the post is a paid partnership that promotes a third-party brand',
+				description:
+					'Whether the post is a paid partnership that promotes a third-party brand',
 			},
 			{
 				displayName: 'Brand Organic',
@@ -249,7 +352,8 @@ export const postFields: INodeProperties[] = [
 				type: 'options',
 				default: 'PUBLIC_TO_EVERYONE',
 				options: [...TIKTOK_PRIVACY_LEVEL_OPTIONS],
-				description: 'Who can see the post. Required for TikTok. Check the creator info of the account first — a private account cannot use Public to Everyone, and an unusable value returns an error.',
+				description:
+					'Who can see the post. Required for TikTok. Check the creator info of the account first — a private account cannot use Public to Everyone, and an unusable value returns an error.',
 			},
 		],
 	},
@@ -259,7 +363,8 @@ export const postFields: INodeProperties[] = [
 		type: 'json',
 		default: '',
 		displayOptions: showFor(['create', 'update']),
-		description: 'Platform-specific metadata as JSON (hashtags, mentions, location, etc.). The typed fields above win over the same feature in this JSON.',
+		description:
+			'Platform-specific metadata as JSON (hashtags, mentions, location, etc.). The typed fields above win over the same feature in this JSON.',
 	},
 
 	// ── Update ──────────────────────────────────────────────────
@@ -271,8 +376,19 @@ export const postFields: INodeProperties[] = [
 		default: {},
 		displayOptions: showFor(['update']),
 		options: [
-			{ displayName: 'Text', name: 'text', type: 'string', typeOptions: { rows: 4 }, default: '' },
-			{ displayName: 'Schedule For', name: 'scheduledAt', type: 'dateTime', default: '' },
+			{
+				displayName: 'Text',
+				name: 'text',
+				type: 'string',
+				typeOptions: { rows: 4 },
+				default: '',
+			},
+			{
+				displayName: 'Schedule For',
+				name: 'scheduledAt',
+				type: 'dateTime',
+				default: '',
+			},
 		],
 	},
 
@@ -302,7 +418,9 @@ export const postFields: INodeProperties[] = [
 		type: 'number',
 		typeOptions: { minValue: 1 },
 		default: 50,
-		displayOptions: { show: { resource: ['post'], operation: ['getMany'], returnAll: [false] } },
+		displayOptions: {
+			show: { resource: ['post'], operation: ['getMany'], returnAll: [false] },
+		},
 		description: 'Max number of results to return',
 	},
 	{
@@ -369,21 +487,37 @@ export async function executePost(
 	switch (operation) {
 		case 'create': {
 			const text = this.getNodeParameter('text', itemIndex) as string;
-			const socialMedia = this.getNodeParameter('socialMedia', itemIndex) as string;
+			const socialMedia = this.getNodeParameter(
+				'socialMedia',
+				itemIndex,
+			) as string;
 			const postType = this.getNodeParameter('postType', itemIndex) as string;
-			const accountId = this.getNodeParameter('accountId', itemIndex, '') as string;
-			const scheduledAt = this.getNodeParameter('scheduledAt', itemIndex, '') as string;
+			const accountId = this.getNodeParameter(
+				'accountId',
+				itemIndex,
+				'',
+			) as string;
+			const scheduledAt = this.getNodeParameter(
+				'scheduledAt',
+				itemIndex,
+				'',
+			) as string;
 			const filesParam = this.getNodeParameter('files', itemIndex, {}) as {
 				file?: IDataObject[];
 			};
-			const metaDataRaw = this.getNodeParameter('metaData', itemIndex, '') as string | object;
+			const metaDataRaw = this.getNodeParameter('metaData', itemIndex, '') as
+				| string
+				| object;
 
 			const body: IDataObject = { text, socialMedia, postType };
 			if (accountId) body.accountId = accountId;
 			if (scheduledAt) body.scheduledAt = scheduledAt;
 			if (filesParam?.file?.length) body.files = filesParam.file;
 			if (metaDataRaw) {
-				body.metaData = typeof metaDataRaw === 'string' ? JSON.parse(metaDataRaw) : metaDataRaw;
+				body.metaData =
+					typeof metaDataRaw === 'string'
+						? JSON.parse(metaDataRaw)
+						: metaDataRaw;
 			}
 
 			applyPostOptions(body, {
@@ -392,6 +526,7 @@ export async function executePost(
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
 			});
 
+			applyAttachmentOptions.call(this, body, itemIndex);
 			return await soMeApiRequest.call(this, 'POST', '/v1/posts', body);
 		}
 
@@ -401,42 +536,76 @@ export async function executePost(
 		}
 
 		case 'getMany': {
-			const returnAll = this.getNodeParameter('returnAll', itemIndex, false) as boolean;
-			const filters = this.getNodeParameter('filters', itemIndex, {}) as IDataObject;
+			const returnAll = this.getNodeParameter(
+				'returnAll',
+				itemIndex,
+				false,
+			) as boolean;
+			const filters = this.getNodeParameter(
+				'filters',
+				itemIndex,
+				{},
+			) as IDataObject;
 
 			const qs: IDataObject = {};
 			if (filters.status) qs.status = filters.status;
 			if (filters.socialMedia) qs.socialMedia = filters.socialMedia;
 
 			if (returnAll) {
-				return (await soMeApiRequestAllItems.call(this, 'GET', '/v1/posts', qs)) as IDataObject[];
+				return (await soMeApiRequestAllItems.call(
+					this,
+					'GET',
+					'/v1/posts',
+					qs,
+				)) as IDataObject[];
 			}
 			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const response = (await soMeApiRequest.call(this, 'GET', '/v1/posts', undefined, {
-				...qs,
-				page: 1,
-				limit,
-			})) as { data?: IDataObject[] };
+			const response = (await soMeApiRequest.call(
+				this,
+				'GET',
+				'/v1/posts',
+				undefined,
+				{
+					...qs,
+					page: 1,
+					limit,
+				},
+			)) as { data?: IDataObject[] };
 			return response?.data ?? [];
 		}
 
 		case 'getCalendar': {
 			const startDate = this.getNodeParameter('startDate', itemIndex) as string;
 			const endDate = this.getNodeParameter('endDate', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'GET', '/v1/posts/calendar', undefined, {
-				startDate,
-				endDate,
-			});
+			return await soMeApiRequest.call(
+				this,
+				'GET',
+				'/v1/posts/calendar',
+				undefined,
+				{
+					startDate,
+					endDate,
+				},
+			);
 		}
 
 		case 'update': {
 			const postId = this.getNodeParameter('postId', itemIndex) as string;
-			const updateFields = this.getNodeParameter('updateFields', itemIndex, {}) as IDataObject;
-			const metaDataRaw = this.getNodeParameter('metaData', itemIndex, '') as string | object;
+			const updateFields = this.getNodeParameter(
+				'updateFields',
+				itemIndex,
+				{},
+			) as IDataObject;
+			const metaDataRaw = this.getNodeParameter('metaData', itemIndex, '') as
+				| string
+				| object;
 
 			const body: IDataObject = { ...updateFields };
 			if (metaDataRaw) {
-				body.metaData = typeof metaDataRaw === 'string' ? JSON.parse(metaDataRaw) : metaDataRaw;
+				body.metaData =
+					typeof metaDataRaw === 'string'
+						? JSON.parse(metaDataRaw)
+						: metaDataRaw;
 			}
 
 			applyPostOptions(body, {
@@ -445,7 +614,13 @@ export async function executePost(
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
 			});
 
-			return await soMeApiRequest.call(this, 'PATCH', `/v1/posts/${postId}`, body);
+			applyAttachmentOptions.call(this, body, itemIndex);
+			return await soMeApiRequest.call(
+				this,
+				'PATCH',
+				`/v1/posts/${postId}`,
+				body,
+			);
 		}
 
 		case 'delete': {
@@ -459,33 +634,74 @@ export async function executePost(
 				.split(/[\s,]+/)
 				.map((s) => s.trim())
 				.filter(Boolean);
-			return await soMeApiRequest.call(this, 'POST', '/v1/posts/bulk-delete', { ids });
+			return await soMeApiRequest.call(this, 'POST', '/v1/posts/bulk-delete', {
+				ids,
+			});
 		}
 
 		case 'schedule': {
 			const postId = this.getNodeParameter('postId', itemIndex) as string;
-			const scheduleFor = this.getNodeParameter('scheduleFor', itemIndex) as string;
+			const scheduleFor = this.getNodeParameter(
+				'scheduleFor',
+				itemIndex,
+			) as string;
 			const body: IDataObject = { scheduledAt: scheduleFor };
-			applyPostOptions(body, { tiktok: this.getNodeParameter('tiktok', itemIndex, {}) });
-			return await soMeApiRequest.call(this, 'POST', `/v1/posts/${postId}/schedule`, body);
+			applyPostOptions(body, {
+				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
+				firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
+				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
+			});
+			applyAttachmentOptions.call(this, body, itemIndex);
+			return await postingTool.call(this, 'schedule_post', {
+				id: postId,
+				...body,
+			});
 		}
 
 		case 'unschedule': {
 			const postId = this.getNodeParameter('postId', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'POST', `/v1/posts/${postId}/unschedule`);
+			return await soMeApiRequest.call(
+				this,
+				'POST',
+				`/v1/posts/${postId}/unschedule`,
+			);
 		}
 
 		case 'retry': {
 			const postId = this.getNodeParameter('postId', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'POST', `/v1/posts/${postId}/retry`);
+			return await soMeApiRequest.call(
+				this,
+				'POST',
+				`/v1/posts/${postId}/retry`,
+			);
 		}
 
 		case 'resubmit': {
 			const postId = this.getNodeParameter('postId', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'POST', `/v1/posts/${postId}/resubmit`);
+			return await soMeApiRequest.call(
+				this,
+				'POST',
+				`/v1/posts/${postId}/resubmit`,
+			);
 		}
 
 		default:
 			throw new Error(`Unknown post operation: ${operation}`);
 	}
+}
+
+export function applyAttachmentOptions(
+	this: IExecuteFunctions,
+	body: IDataObject,
+	itemIndex: number,
+): void {
+	const ids = parseFileIds(
+		this.getNodeParameter('libraryFileIds', itemIndex, '') as string,
+	);
+	if (ids.length) body.fileIds = ids;
+	if (this.getNodeParameter('clearMedia', itemIndex, false)) body.fileIds = [];
+	if (this.getNodeParameter('clearThread', itemIndex, false))
+		body.threadParts = [];
+	if (this.getNodeParameter('clearFirstComment', itemIndex, false))
+		body.firstComment = '';
 }

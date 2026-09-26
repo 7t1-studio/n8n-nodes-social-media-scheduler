@@ -1,7 +1,7 @@
 {
   "name": "@social-media-scheduler/n8n-nodes-social-media-scheduler",
   "version": "0.2.0",
-  "description": "n8n community node for social media scheduling — schedule posts and manage a unified inbox, media, analytics, and social accounts across 20 platforms (Instagram, TikTok, X, LinkedIn, YouTube, Facebook, Threads and more). Powered by So-me Studio.",
+  "description": "n8n posting connector for So-me Studio: posts, threads, first comments, drafts, image/video uploads, media validation, and connected social accounts.",
   "keywords": [
     "n8n-community-node-package",
     "n8n",

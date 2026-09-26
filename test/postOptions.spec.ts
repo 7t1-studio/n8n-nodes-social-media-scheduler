@@ -8,6 +8,12 @@ import {
 } from '../nodes/SocialMediaStudio/postOptions';
 
 const requestMock = vi.fn();
+const postingMock = vi.fn();
+
+vi.mock('../nodes/SocialMediaStudio/PostingFunctions', async (importOriginal) => ({
+	...await importOriginal<typeof import('../nodes/SocialMediaStudio/PostingFunctions')>(),
+	postingTool: (...args: unknown[]) => postingMock(...args),
+}));
 
 vi.mock('../nodes/SocialMediaStudio/GenericFunctions', () => ({
 	soMeApiRequest: (...args: unknown[]) => requestMock(...args),
@@ -111,6 +117,8 @@ describe('post request body mapping', () => {
 	beforeEach(() => {
 		requestMock.mockReset();
 		requestMock.mockResolvedValue({ id: 'post-1' });
+		postingMock.mockReset();
+		postingMock.mockResolvedValue({ id: 'post-1' });
 	});
 
 	it('sends threadParts, firstComment and tiktok on create', async () => {
@@ -183,12 +191,8 @@ describe('post request body mapping', () => {
 			0,
 		);
 
-		expect(requestMock).toHaveBeenCalledWith(
-			'POST',
-			'/v1/posts/post-2/schedule',
-			expect.any(Object),
-		);
-		expect(lastBody()).toEqual({
+		expect(postingMock).toHaveBeenCalledWith('schedule_post', {
+			id: 'post-2',
 			scheduledAt: '2026-10-01T10:00:00.000Z',
 			tiktok: { privacyLevel: 'FOLLOWER_OF_CREATOR', allowComments: false },
 		});

@@ -17,6 +17,7 @@ interface SubscriptionResponse {
 	secret: string;
 	url?: string;
 	events?: string[];
+	isActive?: boolean;
 }
 
 export class SocialMediaStudioTrigger implements INodeType {
@@ -87,11 +88,42 @@ export class SocialMediaStudioTrigger implements INodeType {
 					{ page: 1, limit: 100 },
 				)) as { data?: SubscriptionResponse[] } | SubscriptionResponse[];
 
-				const list = Array.isArray(response) ? response : response?.data ?? [];
+				const list = Array.isArray(response)
+					? response
+					: (response?.data ?? []);
 				const match = list.find((s) => s.url === webhookUrl);
 
 				if (match) {
+					const secret =
+						match.secret ||
+						(staticData.subscriptionId === match.id && staticData.secret);
+					if (!secret) return false;
+					const events = this.getNodeParameter('events') as string[];
+					if (!events?.length) {
+						throw new NodeOperationError(
+							this.getNode(),
+							'Select at least one event to subscribe to',
+						);
+					}
+					if (
+						match.isActive === false ||
+						match.events?.length !== events.length ||
+						!events.every((event) => match.events?.includes(event))
+					) {
+						await soMeApiRequest.call(
+							this,
+							'PATCH',
+							`/v1/webhooks/subscriptions/${match.id}`,
+							{
+								events,
+								categories: categoriesForEvents(events),
+								isActive: true,
+							},
+						);
+					}
 					staticData.subscriptionId = match.id;
+					staticData.secret = secret;
+					staticData.subscribedEvents = events;
 					return true;
 				}
 				return false;
@@ -105,7 +137,10 @@ export class SocialMediaStudioTrigger implements INodeType {
 					`n8n: ${this.getWorkflow().name ?? 'workflow'}`;
 
 				if (!events?.length) {
-					throw new NodeOperationError(this.getNode(), 'Select at least one event to subscribe to');
+					throw new NodeOperationError(
+						this.getNode(),
+						'Select at least one event to subscribe to',
+					);
 				}
 
 				const subscription = (await soMeApiRequest.call(
@@ -133,10 +168,15 @@ export class SocialMediaStudioTrigger implements INodeType {
 				if (!id) return true;
 
 				try {
-					await soMeApiRequest.call(this, 'DELETE', `/v1/webhooks/subscriptions/${id}`);
+					await soMeApiRequest.call(
+						this,
+						'DELETE',
+						`/v1/webhooks/subscriptions/${id}`,
+					);
 				} catch (error) {
-					// Subscription may already be gone — treat as cleaned up
-					this.logger.warn(`Unable to delete so-me.studio webhook subscription: ${(error as Error).message}`);
+					// Only an already deleted subscription is successful cleanup.
+					if ((error as { httpCode?: string }).httpCode !== '404')
+						throw new NodeOperationError(this.getNode(), error as Error);
 				}
 
 				delete staticData.subscriptionId;
@@ -150,7 +190,10 @@ export class SocialMediaStudioTrigger implements INodeType {
 	async webhook(this: IWebhookFunctions): Promise<IWebhookResponseData> {
 		const req = this.getRequestObject();
 		const headers = this.getHeaderData() as Record<string, string | undefined>;
-		const verifySignature = this.getNodeParameter('verifySignature', true) as boolean;
+		const verifySignature = this.getNodeParameter(
+			'verifySignature',
+			true,
+		) as boolean;
 		const subscribedEvents = this.getNodeParameter('events') as string[];
 		const staticData = this.getWorkflowStaticData('node') as IDataObject;
 
@@ -159,38 +202,44 @@ export class SocialMediaStudioTrigger implements INodeType {
 		const rawBody = rawBodySource?.toString() ?? JSON.stringify(req.body ?? {});
 
 		if (verifySignature) {
-			const provided = headers['x-webhook-signature'] ?? headers['X-Webhook-Signature'];
+			const provided =
+				headers['x-webhook-signature'] ?? headers['X-Webhook-Signature'];
 			const secret = staticData.secret as string | undefined;
 
 			if (!secret) {
-				return {
-					webhookResponse: { status: 401, body: { error: 'No webhook secret on record' } },
-					noWebhookResponse: false,
-				};
+				return rejectWebhook.call(this, 'No webhook secret on record');
 			}
 			if (!provided) {
-				return {
-					webhookResponse: { status: 401, body: { error: 'Missing X-Webhook-Signature header' } },
-					noWebhookResponse: false,
-				};
+				return rejectWebhook.call(this, 'Missing X-Webhook-Signature header');
 			}
 
-			const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
+			const expected = createHmac('sha256', secret)
+				.update(rawBody)
+				.digest('hex');
 			const match = safeEqualHex(expected, provided);
 			if (!match) {
-				return {
-					webhookResponse: { status: 401, body: { error: 'Invalid signature' } },
-					noWebhookResponse: false,
-				};
+				return rejectWebhook.call(this, 'Invalid signature');
 			}
 		}
 
-		const body = (req.body ?? {}) as { event?: string; category?: string; timestamp?: string; data?: IDataObject };
+		const body = (req.body ?? {}) as {
+			event?: string;
+			category?: string;
+			timestamp?: string;
+			data?: IDataObject;
+		};
 		const event = body.event;
 
 		// Filter against the user's selected events
-		if (event && subscribedEvents?.length && !subscribedEvents.includes(event)) {
-			return { webhookResponse: { status: 200, body: { ignored: true, event } }, noWebhookResponse: false };
+		if (
+			event &&
+			subscribedEvents?.length &&
+			!subscribedEvents.includes(event)
+		) {
+			return {
+				webhookResponse: { status: 200, body: { ignored: true, event } },
+				noWebhookResponse: false,
+			};
 		}
 
 		const payload: IDataObject = {
@@ -207,6 +256,7 @@ export class SocialMediaStudioTrigger implements INodeType {
 }
 
 function safeEqualHex(expectedHex: string, providedHex: string): boolean {
+	if (!/^[a-fA-F0-9]{64}$/.test(providedHex)) return false;
 	try {
 		const a = Buffer.from(expectedHex, 'hex');
 		const b = Buffer.from(providedHex, 'hex');
@@ -215,4 +265,12 @@ function safeEqualHex(expectedHex: string, providedHex: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+function rejectWebhook(
+	this: IWebhookFunctions,
+	message: string,
+): IWebhookResponseData {
+	this.getResponseObject().status(401).json({ error: message });
+	return { noWebhookResponse: true };
 }

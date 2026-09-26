@@ -1,4 +1,8 @@
-import { IDataObject, ILoadOptionsFunctions, INodePropertyOptions } from 'n8n-workflow';
+import {
+	IDataObject,
+	ILoadOptionsFunctions,
+	INodePropertyOptions,
+} from 'n8n-workflow';
 import { soMeApiRequestAllItems } from '../GenericFunctions';
 
 interface AccountRow extends IDataObject {
@@ -7,6 +11,8 @@ interface AccountRow extends IDataObject {
 	platformDisplayName?: string;
 	name?: string;
 	username?: string;
+	accountName?: string;
+	userName?: string;
 }
 
 interface FolderRow extends IDataObject {
@@ -28,13 +34,19 @@ interface SavedReplyRow extends IDataObject {
 export async function getSocialAccounts(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
-	const accounts = (await soMeApiRequestAllItems.call(this, 'GET', '/v1/accounts')) as AccountRow[];
+	const accounts = (await soMeApiRequestAllItems.call(
+		this,
+		'GET',
+		'/v1/accounts',
+	)) as AccountRow[];
 
 	return accounts.map((a) => ({
 		name:
 			a.platformDisplayName ??
-			[a.platform, a.name ?? a.username].filter(Boolean).join(' · ') ??
-			a.id,
+			([a.platform, a.accountName ?? a.name ?? a.userName ?? a.username]
+				.filter(Boolean)
+				.join(' · ') ||
+				a.id),
 		value: a.id,
 	}));
 }
@@ -42,7 +54,11 @@ export async function getSocialAccounts(
 export async function getMediaFolders(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
-	const folders = (await soMeApiRequestAllItems.call(this, 'GET', '/v1/media/folders')) as FolderRow[];
+	const folders = (await soMeApiRequestAllItems.call(
+		this,
+		'GET',
+		'/v1/media/folders',
+	)) as FolderRow[];
 
 	return [
 		{ name: '— Root —', value: '' },
@@ -53,13 +69,21 @@ export async function getMediaFolders(
 export async function getTemplates(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
-	const templates = (await soMeApiRequestAllItems.call(this, 'GET', '/v1/templates')) as TemplateRow[];
+	const templates = (await soMeApiRequestAllItems.call(
+		this,
+		'GET',
+		'/v1/templates',
+	)) as TemplateRow[];
 	return templates.map((t) => ({ name: t.name, value: t.id }));
 }
 
 export async function getSavedReplies(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
-	const replies = (await soMeApiRequestAllItems.call(this, 'GET', '/v1/inbox/saved-replies')) as SavedReplyRow[];
+	const replies = (await soMeApiRequestAllItems.call(
+		this,
+		'GET',
+		'/v1/inbox/saved-replies',
+	)) as SavedReplyRow[];
 	return replies.map((r) => ({ name: r.title, value: r.id }));
 }

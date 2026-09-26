@@ -1,111 +1,78 @@
 # Social media studio for n8n
 
-[![npm version](https://img.shields.io/npm/v/@social-media-scheduler/n8n-nodes-social-media-studio.svg)](https://www.npmjs.com/package/@social-media-scheduler/n8n-nodes-social-media-studio)
-
-**Social media scheduling inside n8n.** A focused community node for
-[So-me Studio](https://so-me.studio) — create drafts, schedule posts, manage media,
-and automate publishing across
-20 platforms (X/Twitter, LinkedIn, Instagram, Facebook, TikTok, YouTube,
-Threads, WhatsApp, Pinterest, Bluesky, Mastodon, Reddit, Discord, Slack,
-Dribbble and more).
-
-[Website](https://so-me.studio) · [Documentation](https://docs.so-me.studio/integrations/n8n) · [Pricing](https://so-me.studio/pricing) · [Free tools](https://so-me.studio/free-tools)
+A posting connector for [So-me Studio](https://so-me.studio). This release includes posts, drafts, media, connected account lookups, and publishing event triggers. Inbox, comments management, analytics, saved replies, and account administration are deferred.
 
 ## Installation
 
-This connector is not published yet. The commands below use the package name planned for the first release; use the local development steps until it is published.
+Install `@social-media-scheduler/n8n-nodes-social-media-scheduler` through **Settings → Community Nodes**. This release is version `0.2.0`.
 
-In your n8n instance: **Settings → Community Nodes → Install** → enter `@social-media-scheduler/n8n-nodes-social-media-studio`.
+For a local self-hosted n8n instance, build and pack this repository, then install the resulting archive in n8n's user nodes directory:
 
-For self-hosted Docker:
-```bash
-npm install @social-media-scheduler/n8n-nodes-social-media-studio
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm pack --pack-destination ../artifacts
+# Inside the n8n environment, with the archive copied to /tmp:
+cd ~/.n8n/nodes
+npm install --omit=dev --legacy-peer-deps /tmp/social-media-scheduler-n8n-nodes-social-media-scheduler-0.2.0.tgz
+# Restart n8n to load the package.
 ```
+
+Podman can run the self-hosted n8n container and install the archive with `podman cp` and `podman exec`.
 
 ## Authentication
 
-1. Sign in to https://so-me.studio.
-2. Go to **Settings → API Keys** and create a new key.
-3. In n8n, create a new credential of type **Social media studio API** and paste the key.
+Create an API key in So-me Studio's **Settings → API Keys**, then create a **Social media studio API** credential in n8n. Use the default API base URL for the hosted service or set it to your self-hosted backend. New posting features use the `/mcp/posting` endpoint; other operations use `/v1`. The account must have the corresponding API/MCP access and available credits. Webhook subscriptions require a supported plan.
 
-## What's included
+## Included nodes and operations
 
-This package ships two nodes:
+**Social media studio** exposes 41 operations in four resources:
 
-| Node | Purpose |
+| Resource | Operations |
 |---|---|
-| **Social media studio** | Action node for Posts, Drafts, Media, and Social Accounts. |
-| **Social media studio Trigger** | HMAC-SHA256 verified trigger for essential publishing events. |
+| Post | Create, get, list, update, delete, schedule, unschedule, retry, resubmit, bulk delete, calendar |
+| Draft | Create, get, list, update, delete, convert to post |
+| Media | Upload, presign upload, upload to library, presign library upload, get/verify upload, list, search, validate, get rules, delete, bulk delete, move, rename, create/list/rename/move/delete folders |
+| Social Account | Get, list, TikTok creator info, Pinterest boards, Discord channels, Slack channels |
 
-## Resources & operations
+**Social media studio Trigger** subscribes to publishing events and verifies incoming signatures.
 
-- **Post** — create, get, list, update, delete, schedule, unschedule, retry, resubmit, bulk delete, calendar
-- **Draft** — create, get, list, update, delete, convert to post
-- **Inbox** — list conversations, get messages, reply, update, delete, subscribe / unsubscribe accounts
-- **Comment** — list, add, update, delete, mark-read
-- **Media** — upload (binary input), presign upload, list, search, validate, get rules, delete, bulk delete, move, rename, folder CRUD
-- **Analytics** — platform, post, Twitter/X, LinkedIn, Instagram, Facebook, YouTube, WhatsApp
-- **Saved Reply** — create, get, list, update, delete
-- **Social Account** — get, list
+The posting platform choices are Twitter/X, Instagram, LinkedIn personal and page, Facebook, TikTok, YouTube, Threads, WhatsApp, Pinterest, Dribbble, Bluesky, Mastodon, WordPress, Dev.to, Telegram, Discord, and Slack. Reddit and Google Business Profile are outside this release's posting scope. Available post types and options depend on the destination account.
 
-## Post options
+## Threads, first comments, and media
 
-The **Post** resource exposes three typed fields next to the free-form **Metadata** JSON. A typed field wins over the same feature written into that JSON.
+Post create/update/schedule and draft create/update/convert expose **Thread Parts** and **First Comment**. The head uses **Text**, followed by the thread parts in order. Parts accept text, media library file IDs, or both. Threads are supported on Twitter/X, Threads, Bluesky, and Mastodon. The backend validates each platform's limits.
 
-| Field | Operations | What it does |
-|---|---|---|
-| **Thread Parts** | Create, Update | Publishes a chain. The **Text** field is the head post and each part follows it, in order. Each part takes text, a comma-separated list of media library file IDs, or both. Supported on TWITTER, THREADS, BLUESKY and MASTODON; another platform returns an error. Limits per part: TWITTER 280 characters, THREADS 500, BLUESKY 300 graphemes, MASTODON 500, and 24 parts at most. Publishing is best effort past the head post: the response carries a warning when the chain stops early. |
-| **First Comment** | Create, Update | Posts one comment under the post right after it publishes — hashtags or a link you keep out of the caption. Supported on FACEBOOK, INSTAGRAM, TWITTER, LINKEDIN, LINKEDIN_PAGE, THREADS and YOUTUBE, each with its own length limit. Another platform publishes the post without the comment and returns `warnings: [{ code: "FIRST_COMMENT_UNSUPPORTED" }]`. With **Thread Parts** the comment goes under the last part of the chain. |
-| **TikTok Options** | Create, Update, Schedule | Privacy Level, Allow Comments, Allow Duet, Allow Stitch, Brand Content and Brand Organic. |
+Use **Media Library File IDs** to attach existing uploaded files. On update or schedule/convert, explicit **Clear Media**, **Clear Thread**, and **Clear First Comment** controls distinguish removal from leaving an existing value unchanged. Typed options take precedence over the corresponding metadata fields.
 
-### TikTok note
+Use **Upload to Library** for binary input: the node creates a library upload, sends the bytes to the presigned storage URL, then verifies the stored object. For external uploaders, use **Presign Library Upload**, PUT the bytes, and call **Get** with **Verify Upload** enabled before attaching the returned file IDs. Legacy URL upload operations remain available.
 
-TikTok rejects every post that carries no privacy level, and only the creator may choose one. Set **Privacy Level** on every TikTok post. A missing value returns HTTP 400 `TIKTOK_PRIVACY_LEVEL_REQUIRED` with the `privacyLevelOptions` the account may use. Read the creator info of the account first: a private account cannot use `PUBLIC_TO_EVERYONE`, and a level the creator cannot use returns `TIKTOK_PRIVACY_LEVEL_NOT_ALLOWED`. The options are ignored on every other platform.
+**Media → Validate** checks files against destination rules, and **Get Rules** returns the platform constraints. Check validation results before scheduling.
 
-Social accounts report what they support. **Social Account → Get / List** returns `capabilities`, for example `{ "firstComment": true, "firstCommentMaxLength": 280, "threads": true, "threadPartMaxLength": 280 }`.
+## TikTok
 
-## Media validation
+Read **Social Account → TikTok Creator Info**, then choose an allowed privacy level explicitly. TikTok Options also support comments, duet, stitch, brand content, and brand organic settings. The backend rejects missing or disallowed privacy levels. Explicit `false` settings are preserved.
 
-**Media → Validate** checks media library files against every destination before you post. Each result carries the destination limits, the issues and the warnings. A dimension or aspect-ratio issue reports `measured`, `required`, a `fix` string and `suggestedDimensions`, so a workflow can crop the file to a size the platform accepts. **Media → Get Rules** returns the rules table itself — allowed types, file and total size, count, duration, width, height, aspect ratio, video codecs and frame rate — and accepts an optional platform and post type filter.
+Social account results include capability information for threads and first comments. Unsupported first comments can produce warnings; callers should inspect the result.
 
 ## Trigger events
 
-The initial release exposes `post.created`, `post.scheduled`, `post.published`, `post.failed`, `draft.converted`, and `quota.limit_reached`. The trigger node creates a webhook subscription against the configured n8n webhook URL on activation, captures the per-subscription `secret`, and verifies every incoming POST with HMAC-SHA256 to match the backend's signing scheme.
+The release includes `post.created`, `post.scheduled`, `post.published`, `post.failed`, `draft.converted`, and `quota.limit_reached`.
 
-## Example workflows
+Activation registers the workflow webhook URL and saves the subscription secret. Incoming POST bodies are checked with HMAC-SHA256; missing or invalid signatures receive HTTP 401. Only selected events start the workflow. Keep **Verify Signature** enabled outside debugging. The backend must be able to reach n8n's configured webhook URL.
 
-### 1. RSS → create a draft
-**Trigger:** RSS Feed Read (built-in)
-**Step 2:** Social media studio → Draft → Create → text = `{{$json.title}}\n\n{{$json.link}}`
+## Development and checks
 
-### 2. Failed publication → Slack
-**Trigger:** Social media studio Trigger → event = `post.failed`
-**Step 2:** Slack → Send Message → channel = `#social`, text = `Publication failed: {{$json.data}}`
-
-## Development
-
-```bash
-pnpm install
-pnpm build
+```sh
+pnpm install --frozen-lockfile
+pnpm check-types
+pnpm lint
 pnpm test
-pnpm dev        # tsc --watch
+pnpm build
 ```
 
-To test in a local n8n instance:
-```bash
-pnpm build
-npm link
-cd ~/.n8n/custom
-npm link @social-media-scheduler/n8n-nodes-social-media-studio
-n8n start
-```
+Tests cover the operation inventory, request mapping, thread and media options, error handling, MCP JSON/SSE responses, and webhook signatures and subscription lifecycle. Local integration testing should also run the packed artifact inside n8n against an isolated backend and storage service.
 
 ## License
 
 MIT — see [LICENSE](./LICENSE).
-
-## Links
-
-- **Docs:** https://docs.so-me.studio
-- **App:** https://so-me.studio
-- **Issues:** https://github.com/7t1-studio/n8n-nodes-social-media-scheduler/issues

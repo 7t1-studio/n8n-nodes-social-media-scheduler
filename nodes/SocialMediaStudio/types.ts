@@ -15,6 +15,13 @@ export const SOCIAL_MEDIA_OPTIONS = [
 	{ name: 'WhatsApp', value: 'WHATSAPP' },
 	{ name: 'Pinterest', value: 'PINTEREST' },
 	{ name: 'Dribbble', value: 'DRIBBBLE' },
+	{ name: 'Bluesky', value: 'BLUESKY' },
+	{ name: 'Mastodon', value: 'MASTODON' },
+	{ name: 'WordPress', value: 'WORDPRESS' },
+	{ name: 'Dev.to', value: 'DEV_TO' },
+	{ name: 'Telegram', value: 'TELEGRAM' },
+	{ name: 'Discord', value: 'DISCORD' },
+	{ name: 'Slack', value: 'SLACK' },
 ] as const;
 
 export const POST_TYPE_OPTIONS = [
