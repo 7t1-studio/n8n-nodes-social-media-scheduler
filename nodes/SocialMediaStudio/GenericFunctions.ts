@@ -92,55 +92,132 @@ export async function soMeApiRequestAllItems<T = IDataObject>(
 	return items;
 }
 
+/**
+ * n8n's request helpers already throw a NodeApiError with `httpCode` and the
+ * response body in `context.data`. A NodeApiError passed to the NodeApiError
+ * constructor comes back unchanged, so read the status and the body first and
+ * build a new error from the body.
+ */
 function mapError(this: ApiContext, error: unknown): NodeApiError {
-	const errorObject = error as {
-		statusCode?: number;
-		response?: { statusCode?: number; body?: unknown; data?: unknown };
-		error?: unknown;
-	};
-	const status = errorObject.statusCode ?? errorObject.response?.statusCode;
-	const responseBody =
-		errorObject.response?.body ?? errorObject.response?.data ?? errorObject.error ?? error;
+	const { status, body } = errorDetails(error);
+	// Without an HTTP status (no connection, timeout) n8n's own message is the clearest.
+	if (!status && error instanceof NodeApiError) return error;
 
-	const friendly = friendlyMessage(status, responseBody);
+	const { message, description } = friendlyMessage(status, body);
+	const response = (
+		body && typeof body === 'object' ? body : { message: apiText(body) ?? message }
+	) as JsonObject;
 
-	return new NodeApiError(this.getNode(), responseBody as JsonObject, {
-		message: friendly,
+	return new NodeApiError(this.getNode(), response, {
+		message,
+		description,
 		httpCode: status ? String(status) : undefined,
 	});
 }
 
-function friendlyMessage(status: number | undefined, body: unknown): string {
-	const bodyObject = body as { message?: unknown; error?: unknown } | null;
-	const apiMsg =
-		(typeof body === 'object' &&
-			bodyObject &&
-			(typeof bodyObject.message === 'string'
-				? bodyObject.message
-				: typeof bodyObject.error === 'string'
-					? bodyObject.error
-					: undefined)) ||
-		(typeof body === 'string' ? body : undefined);
+function errorDetails(error: unknown): { status?: number; body?: unknown } {
+	const errorObject = error as {
+		statusCode?: number;
+		httpCode?: string | null;
+		context?: { data?: unknown };
+		response?: { status?: number; statusCode?: number; body?: unknown; data?: unknown };
+		cause?: { response?: { status?: number; data?: unknown } };
+		error?: unknown;
+		message?: string;
+	};
+	const status =
+		Number(
+			errorObject.statusCode ??
+				errorObject.response?.statusCode ??
+				errorObject.response?.status ??
+				errorObject.httpCode ??
+				errorObject.cause?.response?.status,
+		) || undefined;
+	const body =
+		errorObject.response?.body ??
+		errorObject.response?.data ??
+		errorObject.context?.data ??
+		errorObject.cause?.response?.data ??
+		errorObject.error ??
+		(status ? undefined : errorObject.message);
+	return { status, body };
+}
+
+/** The API text without a final period. NestJS validation sends a list of texts. */
+function apiText(body: unknown): string | undefined {
+	if (typeof body === 'string') return body.trim().replace(/\.$/, '') || undefined;
+	if (!body || typeof body !== 'object') return undefined;
+	const { message, error } = body as { message?: unknown; error?: unknown };
+	const text = Array.isArray(message)
+		? message.filter((part) => typeof part === 'string').join('; ')
+		: typeof message === 'string'
+			? message
+			: typeof error === 'string'
+				? error
+				: undefined;
+	return text?.trim().replace(/\.$/, '') || undefined;
+}
+
+const RETRY_HINT = "Run the node again later, or turn on 'Retry On Fail' in the node settings.";
+
+/**
+ * The message says what happened and the description says what to do next, as
+ * the n8n UX guidelines ask. The API text stays in the message, because an AI
+ * agent that uses the node as a tool receives only the message.
+ */
+function friendlyMessage(
+	status: number | undefined,
+	body: unknown,
+): { message: string; description?: string } {
+	const text = apiText(body);
+	const withText = (message: string) => (text ? `${message}: ${text}` : message);
 
 	switch (status) {
-		case 401:
-			return 'API key invalid or revoked. Regenerate one at so-me.studio → Settings → API Keys.';
-		case 402:
-			return `Quota exhausted: ${apiMsg ?? 'plan limit reached'}. Upgrade your plan or wait for the next billing cycle.`;
-		case 403:
-			return `Forbidden: ${apiMsg ?? 'this API key lacks permission for the requested resource.'}`;
-		case 404:
-			return `Not found: ${apiMsg ?? 'the requested resource does not exist.'}`;
+		case 400:
 		case 422:
-			return `Validation failed: ${apiMsg ?? 'check field values and try again.'}`;
+			return {
+				message: withText('Social Media Studio did not accept the request'),
+				description: 'Check the node parameters and run the node again.',
+			};
+		case 401:
+			return {
+				message: 'The API key is not valid',
+				description:
+					'Create a new API key in Social Media Studio at Settings → API Keys, then update the Social Media Studio API credential.',
+			};
+		case 402:
+			return {
+				message: withText('The plan limit is reached'),
+				description: 'Upgrade the plan in Social Media Studio, or wait for the next billing period.',
+			};
+		case 403:
+			return {
+				message: withText('The API key has no access to this item'),
+				description: 'Check that the item belongs to the workspace of the API key.',
+			};
+		case 404:
+			return {
+				message: withText('The item does not exist'),
+				description: 'Check the ID, or select the item from the list.',
+			};
 		case 429:
-			return 'Rate limited. Slow down requests or upgrade your plan for a higher rate limit.';
+			return {
+				message: 'Social Media Studio received too many requests in a short time',
+				description: `Wait a moment. ${RETRY_HINT}`,
+			};
 		case 500:
 		case 502:
 		case 503:
 		case 504:
-			return `so-me.studio is temporarily unavailable (HTTP ${status}). The request will be retried by n8n if configured.`;
+			return {
+				message: `Social Media Studio is not available at the moment (HTTP ${status})`,
+				description: RETRY_HINT,
+			};
 		default:
-			return apiMsg ?? `Unexpected error from so-me.studio API${status ? ` (HTTP ${status})` : ''}.`;
+			return {
+				message:
+					text ?? `Social Media Studio did not complete the request${status ? ` (HTTP ${status})` : ''}`,
+				description: RETRY_HINT,
+			};
 	}
 }

@@ -4,6 +4,27 @@ import { POST_TYPE_OPTIONS, SOCIAL_MEDIA_OPTIONS } from '../types';
 import { postingTool } from '../PostingFunctions';
 import { applyPostOptions } from '../postOptions';
 import { applyAttachmentOptions, postFields } from './PostDescription';
+import {
+	getResourceId,
+	parseJsonParameter,
+	resourceIdFrom,
+	resourceLocator,
+	unsupportedOperation,
+} from './common';
+
+const accountLocator = (
+	description: string,
+	displayOptions?: INodeProperties['displayOptions'],
+) =>
+	resourceLocator({
+		displayName: 'Account',
+		name: 'accountId',
+		entity: 'account',
+		searchListMethod: 'searchAccounts',
+		searchable: true,
+		description,
+		displayOptions,
+	});
 
 const showFor = (operations: string[]) => ({
 	show: { resource: ['draft'], operation: operations },
@@ -56,14 +77,15 @@ export const draftFields: INodeProperties[] = [
 						: ['create', 'update'],
 			),
 		})),
-	{
-		displayName: 'Draft ID',
+	resourceLocator({
+		displayName: 'Draft',
 		name: 'draftId',
-		type: 'string',
+		entity: 'draft',
+		searchListMethod: 'searchDrafts',
 		required: true,
-		default: '',
 		displayOptions: showFor(['get', 'update', 'delete', 'convert']),
-	},
+		description: 'The draft to use. The list shows the newest drafts first.',
+	}),
 	{
 		displayName: 'Text',
 		name: 'text',
@@ -91,16 +113,10 @@ export const draftFields: INodeProperties[] = [
 		options: [...POST_TYPE_OPTIONS],
 		displayOptions: showFor(['create']),
 	},
-	{
-		displayName: 'Account Name or ID',
-		name: 'accountId',
-		type: 'options',
-		default: '',
-		typeOptions: { loadOptionsMethod: 'getSocialAccounts' },
-		displayOptions: showFor(['create', 'convert']),
-		description:
-			'Social account this draft is for. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
-	},
+	accountLocator(
+		'Social account this draft is for. If empty, the workspace default account for the platform is used.',
+		showFor(['create', 'convert']),
+	),
 	{
 		displayName: 'Update Fields',
 		name: 'updateFields',
@@ -109,12 +125,7 @@ export const draftFields: INodeProperties[] = [
 		default: {},
 		displayOptions: showFor(['update']),
 		options: [
-			{
-				displayName: 'Account ID',
-				name: 'accountId',
-				type: 'string',
-				default: '',
-			},
+			accountLocator('Social account this draft is for'),
 			{
 				displayName: 'Description',
 				name: 'description',
@@ -187,17 +198,13 @@ export async function executeDraft(
 				socialMedia: this.getNodeParameter('socialMedia', itemIndex),
 				postType: this.getNodeParameter('postType', itemIndex),
 			};
-			const accountId = this.getNodeParameter(
-				'accountId',
-				itemIndex,
-				'',
-			) as string;
+			const accountId = getResourceId.call(this, 'accountId', itemIndex);
 			if (accountId) body.accountId = accountId;
 			applyDraftOptions.call(this, body, itemIndex);
 			return await postingTool.call(this, 'create_draft', body);
 		}
 		case 'get': {
-			const id = this.getNodeParameter('draftId', itemIndex) as string;
+			const id = getResourceId.call(this, 'draftId', itemIndex);
 			return await soMeApiRequest.call(this, 'GET', `/v1/drafts/${id}`);
 		}
 		case 'getMany': {
@@ -223,23 +230,28 @@ export async function executeDraft(
 			return r?.data ?? [];
 		}
 		case 'update': {
-			const id = this.getNodeParameter('draftId', itemIndex) as string;
+			const id = getResourceId.call(this, 'draftId', itemIndex);
 			const updateFields = this.getNodeParameter(
 				'updateFields',
 				itemIndex,
 				{},
 			) as IDataObject;
 			const body: IDataObject = { id, ...updateFields };
+			if ('accountId' in updateFields) {
+				const accountId = resourceIdFrom(updateFields.accountId);
+				if (accountId) body.accountId = accountId;
+				else delete body.accountId;
+			}
 			applyDraftOptions.call(this, body, itemIndex);
 			return await postingTool.call(this, 'update_draft', body);
 		}
 		case 'delete': {
-			const id = this.getNodeParameter('draftId', itemIndex) as string;
+			const id = getResourceId.call(this, 'draftId', itemIndex);
 			await soMeApiRequest.call(this, 'DELETE', `/v1/drafts/${id}`);
 			return { deleted: true };
 		}
 		case 'convert': {
-			const id = this.getNodeParameter('draftId', itemIndex) as string;
+			const id = getResourceId.call(this, 'draftId', itemIndex);
 			const scheduledAt = this.getNodeParameter(
 				'scheduledAt',
 				itemIndex,
@@ -247,17 +259,13 @@ export async function executeDraft(
 			) as string;
 			const body: IDataObject = {};
 			if (scheduledAt) body.scheduledAt = scheduledAt;
-			const accountId = this.getNodeParameter(
-				'accountId',
-				itemIndex,
-				'',
-			) as string;
+			const accountId = getResourceId.call(this, 'accountId', itemIndex);
 			if (accountId) body.accountId = accountId;
 			applyDraftOptions.call(this, body, itemIndex);
 			return await postingTool.call(this, 'convert_draft', { id, ...body });
 		}
 		default:
-			throw new Error(`Unknown draft operation: ${operation}`);
+			throw unsupportedOperation.call(this, 'draft', operation);
 	}
 }
 
@@ -266,12 +274,13 @@ function applyDraftOptions(
 	body: IDataObject,
 	itemIndex: number,
 ): void {
-	const metadata = this.getNodeParameter('metaData', itemIndex, '') as
-		| string
-		| IDataObject;
-	if (metadata)
-		body.metaData =
-			typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+	const metadata = parseJsonParameter.call(
+		this,
+		'metaData',
+		'Metadata',
+		itemIndex,
+	);
+	if (metadata) body.metaData = metadata;
 	applyPostOptions(body, {
 		threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
 		firstComment: this.getNodeParameter('firstComment', itemIndex, ''),

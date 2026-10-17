@@ -1,19 +1,23 @@
 import {
 	IDataObject,
 	IExecuteFunctions,
-	ILoadOptionsFunctions,
 	INodeExecutionData,
-	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
+	JsonObject,
+	NodeApiError,
 	NodeConnectionTypes,
 	NodeOperationError,
 } from 'n8n-workflow';
 
 import {
-	getMediaFolders,
-	getSocialAccounts,
-} from './methods/loadOptions';
+	searchAccounts,
+	searchDrafts,
+	searchFiles,
+	searchFolders,
+	searchPosts,
+} from './methods/listSearch';
+import { outputFields, shapeOutput } from './output';
 
 import { executePost, postFields, postOperations } from './descriptions/PostDescription';
 import { executeDraft, draftFields, draftOperations } from './descriptions/DraftDescription';
@@ -59,14 +63,18 @@ export class SocialMediaStudio implements INodeType {
 			...mediaFields,
 			...socialAccountOperations,
 			...socialAccountFields,
+			...outputFields,
 		],
 	};
 
 	methods = {
-		loadOptions: {
-			getSocialAccounts,
-			getMediaFolders,
-		} as Record<string, (this: ILoadOptionsFunctions) => Promise<INodePropertyOptions[]>>,
+		listSearch: {
+			searchAccounts,
+			searchDrafts,
+			searchFiles,
+			searchFolders,
+			searchPosts,
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -85,8 +93,9 @@ export class SocialMediaStudio implements INodeType {
 					case 'media':          result = await executeMedia.call(this, operation, i); break;
 					case 'socialAccount':  result = await executeSocialAccount.call(this, operation, i); break;
 					default:
-						throw new NodeOperationError(this.getNode(), `Unknown resource: ${resource}`);
+						throw new NodeOperationError(this.getNode(), `The resource '${resource}' is not supported`);
 				}
+				result = shapeOutput.call(this, resource, operation, result, i);
 
 				if (Array.isArray(result)) {
 					returnData.push(
@@ -100,7 +109,17 @@ export class SocialMediaStudio implements INodeType {
 					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
 				}
-				throw new NodeOperationError(this.getNode(), error as Error, { itemIndex: i });
+				const itemLabel = ` [Item ${i}]`;
+				const message = (error as Error).message ?? '';
+				const labeled = message.endsWith(itemLabel) ? message : `${message}${itemLabel}`;
+				// Both constructors return the same object for an error of their own class.
+				if (error instanceof NodeApiError || error instanceof NodeOperationError) {
+					error.message = labeled;
+					error.context.itemIndex = i;
+				}
+				if (error instanceof NodeApiError)
+					throw new NodeApiError(this.getNode(), error as unknown as JsonObject);
+				throw new NodeOperationError(this.getNode(), error as Error, { itemIndex: i, message: labeled });
 			}
 		}
 

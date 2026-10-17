@@ -29,7 +29,17 @@ The package contains two nodes.
 
 Posts and drafts can go to Twitter/X, Instagram, LinkedIn (personal and Page), Facebook, TikTok, YouTube, Threads, Pinterest, Dribbble, Bluesky, Mastodon, WordPress, Dev.to, Discord, and Slack. The post types and options that you can use depend on the destination account.
 
-The n8n AI Agent can use this node as a tool.
+Fields that point to one post, draft, file, folder, or social account have a **From List** mode and a **By ID** mode. **From List** shows the records of your workspace. In the file list, type a name to search every folder.
+
+**Get**, **Get Many**, **Get Calendar**, and **Search** operations have an **Output** option:
+
+| Output | Returns |
+|---|---|
+| Simplified (default) | Up to 10 of the most useful fields. Nested values, such as the account name, move to the top level. |
+| Raw | All the fields that the API returns. |
+| Selected Fields | The ID and the fields that you select in **Fields**. |
+
+The n8n AI Agent can use this node as a tool. Use **Simplified** or **Selected Fields** for a tool, so that the agent receives fewer fields.
 
 ### Social Media Studio Trigger
 
@@ -68,7 +78,7 @@ Keep the default **Base URL** (`https://api.so-me.studio`) unless you run your o
 ### Publish a post with an image
 
 1. Add a **Social Media Studio** node with **Media → Upload to Library**. Set **Binary Property** to the binary field that holds the image. The node uploads and verifies the file and returns its file ID.
-2. Add a second **Social Media Studio** node with **Post → Create**. Set **Platform** and **Post Type**, then select the destination in **Account Name or ID**.
+2. Add a second **Social Media Studio** node with **Post → Create**. Set **Platform** and **Post Type**, then select the destination in **Account**.
 3. Put the file ID from step 1 in **Media Library File IDs**, write the **Text**, and set **Schedule For**. Leave **Schedule For** empty to publish now.
 
 Run **Media → Validate** before you schedule a post. It checks each file against the rules of each destination. **Media → Get Rules** returns the limits of each platform.
@@ -86,6 +96,10 @@ To upload bytes from outside n8n, use **Media → Presign Library Upload**, send
 ### TikTok
 
 Run **Social Account → Get TikTok Creator Info** first. Then choose one of the returned privacy levels in **TikTok Options → Privacy Level**. TikTok refuses a post without an allowed privacy level. **TikTok Options** also controls comments, duet, stitch, and branded content.
+
+### Error messages
+
+An error message tells what happened and shows the item number, for example `The item does not exist: Post not found [Item 0]`. The description below the message tells what to do next. Turn on **Retry On Fail** in the node settings to retry when Social media studio is not available or receives too many requests.
 
 ### Trigger
 
@@ -108,11 +122,11 @@ pnpm test
 pnpm build
 ```
 
-The tests cover the operation list, request mapping, thread and media options, error handling, MCP JSON and SSE responses, webhook signatures, and the subscription lifecycle.
+The tests cover the operation list, request mapping, thread and media options, the **Output** modes, the **From List** searches, error messages, MCP JSON and SSE responses, webhook signatures, and the subscription lifecycle.
 
 ## Version history
 
-- **0.2.1** — Passes the n8n community package scan: title-case credential name, supported node categories, and correct codex node IDs. Removes WhatsApp and Telegram from the posting platforms, because Social media studio cannot publish to them. Removes unused code for deferred features.
+- **0.2.1** — Passes the n8n community package scan: title-case credential name, supported node categories, and correct codex node IDs. Removes WhatsApp and Telegram from the posting platforms, because Social media studio cannot publish to them. Removes unused code for deferred features. Adds the **Output** option (Simplified, Raw, Selected Fields) to the read operations and **From List** pickers for posts, drafts, files, folders, and accounts, as the n8n UX guidelines ask. Error messages now tell what to do next and show the item number. IDs from 0.2.0 workflows still work.
 - **0.2.0** — Posting-only release: posts, drafts, media, social accounts, thread parts, first comments, TikTok options, media validation, and six publishing events.
 - **0.1.x** — First releases.
 

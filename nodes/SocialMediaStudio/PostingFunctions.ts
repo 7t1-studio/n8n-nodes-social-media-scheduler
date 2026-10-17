@@ -45,6 +45,49 @@ export async function postingTool(
 	);
 	let envelope = response as Envelope | undefined;
 	if (typeof response === 'string') {
+		envelope = parseEnvelope.call(this, response);
+	}
+	if (!envelope || envelope.id !== 1 || (!envelope.result && !envelope.error)) {
+		throw unreadableResponse.call(this);
+	}
+	const result = envelope.result;
+	const text = result?.content
+		?.filter((entry) => entry.type === 'text')
+		.map((entry) => entry.text)
+		.join('\n');
+	if (envelope.error || result?.isError) {
+		throw new NodeOperationError(
+			this.getNode(),
+			envelope.error?.message ||
+				text ||
+				'Social Media Studio did not complete the request',
+		);
+	}
+	if (!text) return result?.structuredContent ?? {};
+	try {
+		return JSON.parse(text);
+	} catch {
+		return { message: text };
+	}
+}
+
+function unreadableResponse(
+	this: IExecuteFunctions | ILoadOptionsFunctions,
+): NodeOperationError {
+	return new NodeOperationError(
+		this.getNode(),
+		'Social Media Studio sent a response that the node cannot read',
+		{
+			description: 'Run the node again. If the same message comes back, run it later.',
+		},
+	);
+}
+
+function parseEnvelope(
+	this: IExecuteFunctions | ILoadOptionsFunctions,
+	response: string,
+): Envelope | undefined {
+	try {
 		const messages = response
 			.split(/\r?\n\r?\n/)
 			.map((event: string) =>
@@ -55,34 +98,13 @@ export async function postingTool(
 					.join('\n'),
 			)
 			.filter(Boolean);
-		envelope = messages.length
+		return messages.length
 			? messages
 					.map((message: string) => JSON.parse(message) as Envelope)
 					.find((message) => message.id === 1)
-			: JSON.parse(response);
-	}
-	if (!envelope || envelope.id !== 1 || (!envelope.result && !envelope.error)) {
-		throw new NodeOperationError(
-			this.getNode(),
-			'Invalid response from the posting endpoint',
-		);
-	}
-	const result = envelope.result;
-	const text = result?.content
-		?.filter((entry) => entry.type === 'text')
-		.map((entry) => entry.text)
-		.join('\n');
-	if (envelope.error || result?.isError) {
-		throw new NodeOperationError(
-			this.getNode(),
-			envelope.error?.message || text || 'The posting request was not completed',
-		);
-	}
-	if (!text) return result?.structuredContent ?? {};
-	try {
-		return JSON.parse(text);
+			: (JSON.parse(response) as Envelope);
 	} catch {
-		return { message: text };
+		throw unreadableResponse.call(this);
 	}
 }
 

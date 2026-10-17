@@ -1,5 +1,11 @@
 import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
+import {
+	getResourceId,
+	parseJsonParameter,
+	resourceLocator,
+	unsupportedOperation,
+} from './common';
 import { parseFileIds, postingTool } from '../PostingFunctions';
 import {
 	POST_STATUS_OPTIONS,
@@ -131,12 +137,12 @@ export const postFields: INodeProperties[] = [
 		description: 'Whether to remove the existing first comment',
 	},
 	// ── Common: post ID ─────────────────────────────────────────
-	{
-		displayName: 'Post ID',
+	resourceLocator({
+		displayName: 'Post',
 		name: 'postId',
-		type: 'string',
+		entity: 'post',
+		searchListMethod: 'searchPosts',
 		required: true,
-		default: '',
 		displayOptions: showFor([
 			'get',
 			'update',
@@ -146,8 +152,8 @@ export const postFields: INodeProperties[] = [
 			'retry',
 			'resubmit',
 		]),
-		description: 'UUID of the post',
-	},
+		description: 'The post to use. The list shows the newest posts first.',
+	}),
 
 	// ── Create ──────────────────────────────────────────────────
 	{
@@ -178,16 +184,16 @@ export const postFields: INodeProperties[] = [
 		options: [...POST_TYPE_OPTIONS],
 		displayOptions: showFor(['create']),
 	},
-	{
-		displayName: 'Account Name or ID',
+	resourceLocator({
+		displayName: 'Account',
 		name: 'accountId',
-		type: 'options',
-		default: '',
-		typeOptions: { loadOptionsMethod: 'getSocialAccounts' },
+		entity: 'account',
+		searchListMethod: 'searchAccounts',
+		searchable: true,
 		displayOptions: showFor(['create']),
 		description:
-			'Connected social account to post from. If not set, the workspace default for the platform is used. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
+			'Connected social account to post from. If empty, the workspace default account for the platform is used.',
+	}),
 	{
 		displayName: 'Schedule For',
 		name: 'scheduledAt',
@@ -492,11 +498,7 @@ export async function executePost(
 				itemIndex,
 			) as string;
 			const postType = this.getNodeParameter('postType', itemIndex) as string;
-			const accountId = this.getNodeParameter(
-				'accountId',
-				itemIndex,
-				'',
-			) as string;
+			const accountId = getResourceId.call(this, 'accountId', itemIndex);
 			const scheduledAt = this.getNodeParameter(
 				'scheduledAt',
 				itemIndex,
@@ -505,20 +507,18 @@ export async function executePost(
 			const filesParam = this.getNodeParameter('files', itemIndex, {}) as {
 				file?: IDataObject[];
 			};
-			const metaDataRaw = this.getNodeParameter('metaData', itemIndex, '') as
-				| string
-				| object;
+			const metaData = parseJsonParameter.call(
+				this,
+				'metaData',
+				'Metadata',
+				itemIndex,
+			);
 
 			const body: IDataObject = { text, socialMedia, postType };
 			if (accountId) body.accountId = accountId;
 			if (scheduledAt) body.scheduledAt = scheduledAt;
 			if (filesParam?.file?.length) body.files = filesParam.file;
-			if (metaDataRaw) {
-				body.metaData =
-					typeof metaDataRaw === 'string'
-						? JSON.parse(metaDataRaw)
-						: metaDataRaw;
-			}
+			if (metaData) body.metaData = metaData;
 
 			applyPostOptions(body, {
 				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
@@ -531,7 +531,7 @@ export async function executePost(
 		}
 
 		case 'get': {
-			const postId = this.getNodeParameter('postId', itemIndex) as string;
+			const postId = getResourceId.call(this, 'postId', itemIndex);
 			return await soMeApiRequest.call(this, 'GET', `/v1/posts/${postId}`);
 		}
 
@@ -590,23 +590,21 @@ export async function executePost(
 		}
 
 		case 'update': {
-			const postId = this.getNodeParameter('postId', itemIndex) as string;
+			const postId = getResourceId.call(this, 'postId', itemIndex);
 			const updateFields = this.getNodeParameter(
 				'updateFields',
 				itemIndex,
 				{},
 			) as IDataObject;
-			const metaDataRaw = this.getNodeParameter('metaData', itemIndex, '') as
-				| string
-				| object;
+			const metaData = parseJsonParameter.call(
+				this,
+				'metaData',
+				'Metadata',
+				itemIndex,
+			);
 
 			const body: IDataObject = { ...updateFields };
-			if (metaDataRaw) {
-				body.metaData =
-					typeof metaDataRaw === 'string'
-						? JSON.parse(metaDataRaw)
-						: metaDataRaw;
-			}
+			if (metaData) body.metaData = metaData;
 
 			applyPostOptions(body, {
 				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
@@ -624,7 +622,7 @@ export async function executePost(
 		}
 
 		case 'delete': {
-			const postId = this.getNodeParameter('postId', itemIndex) as string;
+			const postId = getResourceId.call(this, 'postId', itemIndex);
 			await soMeApiRequest.call(this, 'DELETE', `/v1/posts/${postId}`);
 			return { deleted: true };
 		}
@@ -641,7 +639,7 @@ export async function executePost(
 		}
 
 		case 'schedule': {
-			const postId = this.getNodeParameter('postId', itemIndex) as string;
+			const postId = getResourceId.call(this, 'postId', itemIndex);
 			const scheduleFor = this.getNodeParameter(
 				'scheduleFor',
 				itemIndex,
@@ -660,7 +658,7 @@ export async function executePost(
 		}
 
 		case 'unschedule': {
-			const postId = this.getNodeParameter('postId', itemIndex) as string;
+			const postId = getResourceId.call(this, 'postId', itemIndex);
 			return await soMeApiRequest.call(
 				this,
 				'POST',
@@ -669,7 +667,7 @@ export async function executePost(
 		}
 
 		case 'retry': {
-			const postId = this.getNodeParameter('postId', itemIndex) as string;
+			const postId = getResourceId.call(this, 'postId', itemIndex);
 			return await soMeApiRequest.call(
 				this,
 				'POST',
@@ -678,7 +676,7 @@ export async function executePost(
 		}
 
 		case 'resubmit': {
-			const postId = this.getNodeParameter('postId', itemIndex) as string;
+			const postId = getResourceId.call(this, 'postId', itemIndex);
 			return await soMeApiRequest.call(
 				this,
 				'POST',
@@ -687,7 +685,7 @@ export async function executePost(
 		}
 
 		default:
-			throw new Error(`Unknown post operation: ${operation}`);
+			throw unsupportedOperation.call(this, 'post', operation);
 	}
 }
 

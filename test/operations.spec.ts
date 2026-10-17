@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SocialMediaStudio } from '../nodes/SocialMediaStudio/SocialMediaStudio.node';
 import { postingTool } from '../nodes/SocialMediaStudio/PostingFunctions';
-import { getSocialAccounts } from '../nodes/SocialMediaStudio/methods/loadOptions';
 import type { IHttpRequestOptions } from 'n8n-workflow';
 
 const node = new SocialMediaStudio();
@@ -165,7 +164,7 @@ describe('every exposed posting operation', () => {
 			});
 			const { ctx } = context({ ...input, resource, operation }, error);
 			await expect(node.execute.call(ctx as never)).rejects.toThrow(
-				'API key invalid',
+				'The API key is not valid [Item 0]',
 			);
 			expect(ctx.helpers.httpRequest).not.toHaveBeenCalled();
 		});
@@ -182,7 +181,9 @@ describe('single delete operations', () => {
 		it(`${resource}.${operation} returns deleted true for an empty response`, async () => {
 			const { ctx } = context({ ...input, resource, operation }, '');
 			const output = await node.execute.call(ctx as never);
-			expect(output[0]).toEqual([{ json: { deleted: true }, pairedItem: { item: 0 } }]);
+			expect(output[0]).toEqual([
+				{ json: { deleted: true }, pairedItem: { item: 0 } },
+			]);
 		});
 });
 
@@ -264,15 +265,16 @@ describe('posting options and HTTP failure handling', () => {
 			});
 		});
 	for (const [status, message] of [
-		[402, 'Quota exhausted'],
-		[403, 'Forbidden'],
-		[404, 'Not found'],
-		[422, 'Validation failed'],
-		[429, 'Rate limited'],
-		[500, 'temporarily unavailable'],
-		[502, 'temporarily unavailable'],
-		[503, 'temporarily unavailable'],
-		[504, 'temporarily unavailable'],
+		[400, 'did not accept the request: details'],
+		[402, 'The plan limit is reached: details'],
+		[403, 'no access to this item: details'],
+		[404, 'The item does not exist: details'],
+		[422, 'did not accept the request: details'],
+		[429, 'too many requests'],
+		[500, 'not available at the moment (HTTP 500)'],
+		[502, 'not available at the moment (HTTP 502)'],
+		[503, 'not available at the moment (HTTP 503)'],
+		[504, 'not available at the moment (HTTP 504)'],
 	] as const) {
 		it(`HTTP ${status} is actionable and supports continue on fail`, async () => {
 			const { ctx } = context(
@@ -379,27 +381,11 @@ describe('posting options and HTTP failure handling', () => {
 			limit: 100,
 		});
 	});
-	it('uses actual backend accountName/userName fields in account choices', async () => {
-		const { ctx } = context(
-			{},
-			{
-				data: [
-					{ id: 'a', platform: 'BLUESKY', accountName: 'QA User' },
-					{ id: 'b' },
-				],
-				meta: { totalPages: 1 },
-			},
-		);
-		expect(await getSocialAccounts.call(ctx as never)).toEqual([
-			{ name: 'BLUESKY · QA User', value: 'a' },
-			{ name: 'b', value: 'b' },
-		]);
-	});
 	it('rejects deferred resources even when supplied through expressions', async () => {
 		for (const resource of ['inbox', 'analytics', 'comment', 'savedReply']) {
 			const { ctx, request } = context({ resource, operation: 'getMany' });
 			await expect(node.execute.call(ctx as never)).rejects.toThrow(
-				'Unknown resource',
+				`The resource '${resource}' is not supported`,
 			);
 			expect(request).not.toHaveBeenCalled();
 		}

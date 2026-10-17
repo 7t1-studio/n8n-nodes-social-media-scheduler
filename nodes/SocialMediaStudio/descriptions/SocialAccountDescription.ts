@@ -1,6 +1,7 @@
 import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
 import { postingTool } from '../PostingFunctions';
+import { getResourceId, resourceLocator, unsupportedOperation } from './common';
 
 const showFor = (operations: string[]) => ({
 	show: { resource: ['socialAccount'], operation: operations },
@@ -42,13 +43,13 @@ export const socialAccountOperations: INodeProperties[] = [
 ];
 
 export const socialAccountFields: INodeProperties[] = [
-	{
-		displayName: 'Account Name or ID',
+	resourceLocator({
+		displayName: 'Account',
 		name: 'accountId',
-		type: 'options',
+		entity: 'account',
+		searchListMethod: 'searchAccounts',
+		searchable: true,
 		required: true,
-		default: '',
-		typeOptions: { loadOptionsMethod: 'getSocialAccounts' },
 		displayOptions: showFor([
 			'get',
 			'getTikTokCreatorInfo',
@@ -56,9 +57,8 @@ export const socialAccountFields: INodeProperties[] = [
 			'listDiscordChannels',
 			'listSlackChannels',
 		]),
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
+		description: 'The connected social account to use',
+	}),
 	{
 		displayName: 'Return All',
 		name: 'returnAll',
@@ -101,11 +101,11 @@ export async function executeSocialAccount(
 				listSlackChannels: 'list_slack_channels',
 			};
 			return await postingTool.call(this, tools[operation], {
-				accountId: this.getNodeParameter('accountId', itemIndex),
+				accountId: getResourceId.call(this, 'accountId', itemIndex),
 			});
 		}
 		case 'get': {
-			const id = this.getNodeParameter('accountId', itemIndex) as string;
+			const id = getResourceId.call(this, 'accountId', itemIndex);
 			return await soMeApiRequest.call(this, 'GET', `/v1/accounts/${id}`);
 		}
 		case 'getMany': {
@@ -131,6 +131,6 @@ export async function executeSocialAccount(
 			return r?.data ?? [];
 		}
 		default:
-			throw new Error(`Unknown socialAccount operation: ${operation}`);
+			throw unsupportedOperation.call(this, 'socialAccount', operation);
 	}
 }

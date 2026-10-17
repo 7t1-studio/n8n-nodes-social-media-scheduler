@@ -1,7 +1,30 @@
-import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
+import {
+	IDataObject,
+	IExecuteFunctions,
+	INodeProperties,
+	NodeOperationError,
+} from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
 import { POST_TYPE_OPTIONS, SOCIAL_MEDIA_OPTIONS } from '../types';
 import { postingTool } from '../PostingFunctions';
+import { getResourceId, resourceLocator, unsupportedOperation } from './common';
+
+const folderLocator = (
+	displayName: string,
+	name: string,
+	description: string,
+	operations: string[],
+	required = false,
+) =>
+	resourceLocator({
+		displayName,
+		name,
+		entity: 'folder',
+		searchListMethod: 'searchFolders',
+		required,
+		description,
+		displayOptions: showFor(operations),
+	});
 
 const showFor = (operations: string[]) => ({
 	show: { resource: ['media'], operation: operations },
@@ -103,33 +126,31 @@ export const mediaFields: INodeProperties[] = [
 		displayOptions: showFor(['get']),
 		description: 'Whether to verify the stored file bytes, MIME type, and size',
 	},
-	{
-		displayName: 'Library Folder Name or ID',
-		name: 'libraryFolderId',
-		type: 'options',
-		typeOptions: { loadOptionsMethod: 'getMediaFolders' },
-		default: '',
-		displayOptions: showFor(['uploadLibrary', 'presignLibraryUpload']),
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
+	folderLocator(
+		'Library Folder',
+		'libraryFolderId',
+		'The folder to upload into. Leave empty to upload to the root folder.',
+		['uploadLibrary', 'presignLibraryUpload'],
+	),
 	// IDs
-	{
-		displayName: 'File ID',
+	resourceLocator({
+		displayName: 'File',
 		name: 'fileId',
-		type: 'string',
+		entity: 'file',
+		searchListMethod: 'searchFiles',
+		searchable: true,
 		required: true,
-		default: '',
 		displayOptions: showFor(['get', 'delete', 'move', 'rename']),
-	},
-	{
-		displayName: 'Folder ID',
-		name: 'folderId',
-		type: 'string',
-		required: true,
-		default: '',
-		displayOptions: showFor(['deleteFolder', 'renameFolder', 'moveFolder']),
-	},
+		description:
+			'The media library file to use. The list shows the root folder; type a name to search every folder.',
+	}),
+	folderLocator(
+		'Folder',
+		'folderId',
+		'The media library folder to use',
+		['deleteFolder', 'renameFolder', 'moveFolder'],
+		true,
+	),
 	// Upload (binary input)
 	{
 		displayName: 'Binary Property',
@@ -306,16 +327,12 @@ export const mediaFields: INodeProperties[] = [
 		description: 'Comma- or newline-separated list of file UUIDs',
 	},
 	// Move file/folder targets
-	{
-		displayName: 'Target Folder Name or ID',
-		name: 'targetFolderId',
-		type: 'options',
-		default: '',
-		typeOptions: { loadOptionsMethod: 'getMediaFolders' },
-		displayOptions: showFor(['move', 'moveFolder']),
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
+	folderLocator(
+		'Target Folder',
+		'targetFolderId',
+		'The folder to move into. Leave empty to move to the root folder.',
+		['move', 'moveFolder'],
+	),
 	// Rename target
 	{
 		displayName: 'New Name',
@@ -334,16 +351,12 @@ export const mediaFields: INodeProperties[] = [
 		default: '',
 		displayOptions: showFor(['createFolder']),
 	},
-	{
-		displayName: 'Parent Folder Name or ID',
-		name: 'parentFolderId',
-		type: 'options',
-		default: '',
-		typeOptions: { loadOptionsMethod: 'getMediaFolders' },
-		displayOptions: showFor(['createFolder']),
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
+	folderLocator(
+		'Parent Folder',
+		'parentFolderId',
+		'The folder to create the new folder in. Leave empty to create it in the root folder.',
+		['createFolder'],
+	),
 	// List
 	{
 		displayName: 'Return All',
@@ -378,7 +391,7 @@ export async function executeMedia(
 	switch (operation) {
 		case 'get':
 			return await postingTool.call(this, 'get_media_file', {
-				id: this.getNodeParameter('fileId', itemIndex),
+				id: getResourceId.call(this, 'fileId', itemIndex),
 				verifyUpload: this.getNodeParameter('verifyUpload', itemIndex, false),
 			});
 		case 'listFolders': {
@@ -399,11 +412,7 @@ export async function executeMedia(
 		}
 		case 'presignLibraryUpload':
 		case 'uploadLibrary': {
-			const folderId = this.getNodeParameter(
-				'libraryFolderId',
-				itemIndex,
-				'',
-			) as string;
+			const folderId = getResourceId.call(this, 'libraryFolderId', itemIndex);
 			const body: IDataObject = {};
 			if (folderId) body.folderId = folderId;
 			let buffer: Buffer | undefined;
@@ -439,7 +448,7 @@ export async function executeMedia(
 			if (!buffer) return result;
 			const entry = (result as IDataObject[])[0];
 			if (!entry?.uploadUrl || !entry?.fileId)
-				throw new Error('Presign did not return uploadUrl and fileId');
+				throw missingUploadUrl.call(this, itemIndex);
 			await this.helpers.httpRequest({
 				method: 'PUT',
 				url: entry.uploadUrl as string,
@@ -490,9 +499,7 @@ export async function executeMedia(
 			)) as Array<IDataObject>;
 
 			const urlEntry = presigned?.[0];
-			if (!urlEntry?.uploadUrl) {
-				throw new Error('Presign did not return uploadUrl');
-			}
+			if (!urlEntry?.uploadUrl) throw missingUploadUrl.call(this, itemIndex);
 
 			await this.helpers.httpRequest({
 				method: 'PUT',
@@ -608,7 +615,7 @@ export async function executeMedia(
 			return r?.data ?? [];
 		}
 		case 'delete': {
-			const id = this.getNodeParameter('fileId', itemIndex) as string;
+			const id = getResourceId.call(this, 'fileId', itemIndex);
 			await soMeApiRequest.call(this, 'DELETE', `/v1/media/${id}`);
 			return { deleted: true };
 		}
@@ -626,12 +633,12 @@ export async function executeMedia(
 			);
 		}
 		case 'move': {
-			const id = this.getNodeParameter('fileId', itemIndex) as string;
-			const targetFolderId = this.getNodeParameter(
+			const id = getResourceId.call(this, 'fileId', itemIndex);
+			const targetFolderId = getResourceId.call(
+				this,
 				'targetFolderId',
 				itemIndex,
-				'',
-			) as string;
+			);
 			return await soMeApiRequest.call(
 				this,
 				'PATCH',
@@ -640,7 +647,7 @@ export async function executeMedia(
 			);
 		}
 		case 'rename': {
-			const id = this.getNodeParameter('fileId', itemIndex) as string;
+			const id = getResourceId.call(this, 'fileId', itemIndex);
 			const newName = this.getNodeParameter('newName', itemIndex) as string;
 			return await soMeApiRequest.call(
 				this,
@@ -651,22 +658,22 @@ export async function executeMedia(
 		}
 		case 'createFolder': {
 			const name = this.getNodeParameter('folderName', itemIndex) as string;
-			const parentFolderId = this.getNodeParameter(
+			const parentFolderId = getResourceId.call(
+				this,
 				'parentFolderId',
 				itemIndex,
-				'',
-			) as string;
+			);
 			const body: IDataObject = { name };
 			if (parentFolderId) body.parentFolderId = parentFolderId;
 			return await soMeApiRequest.call(this, 'POST', '/v1/media/folders', body);
 		}
 		case 'deleteFolder': {
-			const id = this.getNodeParameter('folderId', itemIndex) as string;
+			const id = getResourceId.call(this, 'folderId', itemIndex);
 			await soMeApiRequest.call(this, 'DELETE', `/v1/media/folders/${id}`);
 			return { deleted: true };
 		}
 		case 'renameFolder': {
-			const id = this.getNodeParameter('folderId', itemIndex) as string;
+			const id = getResourceId.call(this, 'folderId', itemIndex);
 			const newName = this.getNodeParameter('newName', itemIndex) as string;
 			return await soMeApiRequest.call(
 				this,
@@ -676,12 +683,12 @@ export async function executeMedia(
 			);
 		}
 		case 'moveFolder': {
-			const id = this.getNodeParameter('folderId', itemIndex) as string;
-			const targetFolderId = this.getNodeParameter(
+			const id = getResourceId.call(this, 'folderId', itemIndex);
+			const targetFolderId = getResourceId.call(
+				this,
 				'targetFolderId',
 				itemIndex,
-				'',
-			) as string;
+			);
 			return await soMeApiRequest.call(
 				this,
 				'PATCH',
@@ -690,6 +697,21 @@ export async function executeMedia(
 			);
 		}
 		default:
-			throw new Error(`Unknown media operation: ${operation}`);
+			throw unsupportedOperation.call(this, 'media', operation);
 	}
+}
+
+function missingUploadUrl(
+	this: IExecuteFunctions,
+	itemIndex: number,
+): NodeOperationError {
+	return new NodeOperationError(
+		this.getNode(),
+		'Social Media Studio did not return an upload URL for the file',
+		{
+			itemIndex,
+			description:
+				"Run the node again. Use the 'Get Rules' operation to check that the platform accepts this file type and size.",
+		},
+	);
 }
