@@ -1,8 +1,8 @@
 {
-	"node": "@social-media-scheduler/n8n-nodes-social-media-studio.socialMediaStudio",
+	"node": "@social-media-scheduler/n8n-nodes-social-media-scheduler.socialMediaStudio",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
-	"categories": ["Marketing", "Communication"],
+	"categories": ["Marketing & Content", "Communication"],
 	"resources": {
 		"credentialDocumentation": [
 			{ "url": "https://docs.so-me.studio/authentication" }

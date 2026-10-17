@@ -22,7 +22,7 @@ import { executeSocialAccount, socialAccountFields, socialAccountOperations } fr
 
 export class SocialMediaStudio implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Social media studio',
+		displayName: 'Social Media Studio',
 		name: 'socialMediaStudio',
 		icon: {
 			light: 'file:somestudio-favicon.svg',
@@ -33,7 +33,7 @@ export class SocialMediaStudio implements INodeType {
 		usableAsTool: true,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Create and schedule posts, drafts, and media across your connected social accounts.',
-		defaults: { name: 'Social media studio' },
+		defaults: { name: 'Social Media Studio' },
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'socialMediaStudioApi', required: true }],

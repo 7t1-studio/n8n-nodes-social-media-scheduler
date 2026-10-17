@@ -1,7 +1,7 @@
 {
   "name": "@social-media-scheduler/n8n-nodes-social-media-scheduler",
-  "version": "0.2.0",
-  "description": "n8n posting connector for So-me Studio: posts, threads, first comments, drafts, image/video uploads, media validation, and connected social accounts.",
+  "version": "0.2.1",
+  "description": "n8n community node for Social media studio: create and schedule social media posts, threads, first comments and drafts, upload and validate media, read connected accounts, and trigger workflows on publishing events.",
   "keywords": [
     "n8n-community-node-package",
     "n8n",
@@ -45,8 +45,7 @@
     "prepublishOnly": "pnpm lint && pnpm test && pnpm build"
   },
   "files": [
-    "dist",
-    "FUTURE_RELEASE.md"
+    "dist"
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
@@ -60,7 +59,7 @@
     ]
   },
   "devDependencies": {
-    "@n8n/node-cli": "0.45.4",
+    "@n8n/node-cli": "0.52.5",
     "@types/node": "^20.0.0",
     "eslint": "9.29.0",
     "n8n-workflow": "2.16.0",

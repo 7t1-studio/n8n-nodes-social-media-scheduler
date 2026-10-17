@@ -75,7 +75,7 @@ export async function postingTool(
 	if (envelope.error || result?.isError) {
 		throw new NodeOperationError(
 			this.getNode(),
-			envelope.error?.message || text || 'Posting tool failed',
+			envelope.error?.message || text || 'The posting request was not completed',
 		);
 	}
 	if (!text) return result?.structuredContent ?? {};

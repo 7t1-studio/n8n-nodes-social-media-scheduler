@@ -625,7 +625,8 @@ export async function executePost(
 
 		case 'delete': {
 			const postId = this.getNodeParameter('postId', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'DELETE', `/v1/posts/${postId}`);
+			await soMeApiRequest.call(this, 'DELETE', `/v1/posts/${postId}`);
+			return { deleted: true };
 		}
 
 		case 'bulkDelete': {

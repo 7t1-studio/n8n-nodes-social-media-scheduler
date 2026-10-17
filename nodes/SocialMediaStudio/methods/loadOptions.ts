@@ -21,16 +21,6 @@ interface FolderRow extends IDataObject {
 	path?: string;
 }
 
-interface TemplateRow extends IDataObject {
-	id: string;
-	name: string;
-}
-
-interface SavedReplyRow extends IDataObject {
-	id: string;
-	title: string;
-}
-
 export async function getSocialAccounts(
 	this: ILoadOptionsFunctions,
 ): Promise<INodePropertyOptions[]> {
@@ -64,26 +54,4 @@ export async function getMediaFolders(
 		{ name: '— Root —', value: '' },
 		...folders.map((f) => ({ name: f.path ?? f.name, value: f.id })),
 	];
-}
-
-export async function getTemplates(
-	this: ILoadOptionsFunctions,
-): Promise<INodePropertyOptions[]> {
-	const templates = (await soMeApiRequestAllItems.call(
-		this,
-		'GET',
-		'/v1/templates',
-	)) as TemplateRow[];
-	return templates.map((t) => ({ name: t.name, value: t.id }));
-}
-
-export async function getSavedReplies(
-	this: ILoadOptionsFunctions,
-): Promise<INodePropertyOptions[]> {
-	const replies = (await soMeApiRequestAllItems.call(
-		this,
-		'GET',
-		'/v1/inbox/saved-replies',
-	)) as SavedReplyRow[];
-	return replies.map((r) => ({ name: r.title, value: r.id }));
 }

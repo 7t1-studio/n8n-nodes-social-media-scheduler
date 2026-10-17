@@ -235,7 +235,8 @@ export async function executeDraft(
 		}
 		case 'delete': {
 			const id = this.getNodeParameter('draftId', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'DELETE', `/v1/drafts/${id}`);
+			await soMeApiRequest.call(this, 'DELETE', `/v1/drafts/${id}`);
+			return { deleted: true };
 		}
 		case 'convert': {
 			const id = this.getNodeParameter('draftId', itemIndex) as string;

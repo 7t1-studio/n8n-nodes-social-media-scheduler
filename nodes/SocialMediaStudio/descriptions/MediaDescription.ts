@@ -175,7 +175,6 @@ export const mediaFields: INodeProperties[] = [
 			{ name: 'Threads', value: 'THREADS' },
 			{ name: 'TikTok', value: 'TIKTOK' },
 			{ name: 'Twitter / X', value: 'TWITTER' },
-			{ name: 'WhatsApp', value: 'WHATSAPP' },
 			{ name: 'YouTube', value: 'YOUTUBE' },
 		],
 		displayOptions: showFor(['upload', 'presignUpload']),
@@ -610,7 +609,8 @@ export async function executeMedia(
 		}
 		case 'delete': {
 			const id = this.getNodeParameter('fileId', itemIndex) as string;
-			return await soMeApiRequest.call(this, 'DELETE', `/v1/media/${id}`);
+			await soMeApiRequest.call(this, 'DELETE', `/v1/media/${id}`);
+			return { deleted: true };
 		}
 		case 'bulkDelete': {
 			const idsRaw = this.getNodeParameter('fileIds', itemIndex) as string;
@@ -662,11 +662,8 @@ export async function executeMedia(
 		}
 		case 'deleteFolder': {
 			const id = this.getNodeParameter('folderId', itemIndex) as string;
-			return await soMeApiRequest.call(
-				this,
-				'DELETE',
-				`/v1/media/folders/${id}`,
-			);
+			await soMeApiRequest.call(this, 'DELETE', `/v1/media/folders/${id}`);
+			return { deleted: true };
 		}
 		case 'renameFolder': {
 			const id = this.getNodeParameter('folderId', itemIndex) as string;

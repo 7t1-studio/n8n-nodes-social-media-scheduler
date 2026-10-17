@@ -8,8 +8,7 @@ import {
 export class SocialMediaStudioApi implements ICredentialType {
 	name = 'socialMediaStudioApi';
 
-	// eslint-disable-next-line n8n-nodes-base/cred-class-field-display-name-miscased -- Use the exact product brand shared by all three connectors.
-	displayName = 'Social media studio API';
+	displayName = 'Social Media Studio API';
 
 	icon = 'file:somestudio-favicon.svg' as const;
 

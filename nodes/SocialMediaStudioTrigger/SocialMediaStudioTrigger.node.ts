@@ -22,7 +22,7 @@ interface SubscriptionResponse {
 
 export class SocialMediaStudioTrigger implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Social media studio Trigger',
+		displayName: 'Social Media Studio Trigger',
 		name: 'socialMediaStudioTrigger',
 		icon: {
 			light: 'file:somestudio-favicon.svg',
@@ -33,7 +33,7 @@ export class SocialMediaStudioTrigger implements INodeType {
 		subtitle: '={{$parameter["events"].join(", ")}}',
 		description:
 			'Starts a workflow for essential publishing events such as a post being scheduled, published, or failing.',
-		defaults: { name: 'Social media studio Trigger' },
+		defaults: { name: 'Social Media Studio Trigger' },
 		inputs: [],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [{ name: 'socialMediaStudioApi', required: true }],
@@ -47,13 +47,12 @@ export class SocialMediaStudioTrigger implements INodeType {
 		],
 		properties: [
 			{
-				displayName: 'Events',
+				displayName: 'Trigger On',
 				name: 'events',
 				type: 'multiOptions',
 				required: true,
 				default: [],
 				options: eventOptionsForTrigger(),
-				description: 'Subscribe to one or more so-me.studio webhook events',
 			},
 			{
 				displayName: 'Description',

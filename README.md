@@ -1,67 +1,104 @@
-# Social media studio for n8n
+# Social Media Studio for n8n
 
-A posting connector for [So-me Studio](https://so-me.studio). This release includes posts, drafts, media, connected account lookups, and publishing event triggers. Inbox, comments management, analytics, saved replies, and account administration are deferred.
+This is an n8n community node for [Social media studio](https://so-me.studio). It lets your n8n workflows create and schedule social media posts, manage drafts, upload media, read connected accounts, and start workflows on publishing events.
+
+Social media studio is a social media management platform. It publishes and schedules content to Twitter/X, Instagram, LinkedIn, Facebook, TikTok, YouTube, Threads, Pinterest, Bluesky, Mastodon, and other networks from one account.
+
+[Installation](#installation) · [Operations](#operations) · [Credentials](#credentials) · [Compatibility](#compatibility) · [Usage](#usage) · [Resources](#resources) · [Version history](#version-history)
 
 ## Installation
 
-Install `@social-media-scheduler/n8n-nodes-social-media-scheduler` through **Settings → Community Nodes**. This release is version `0.2.0`.
+Follow the [installation guide](https://docs.n8n.io/integrations/community-nodes/installation/) in the n8n community nodes documentation. In **Settings → Community Nodes → Install**, enter:
 
-For a local self-hosted n8n instance, build and pack this repository, then install the resulting archive in n8n's user nodes directory:
-
-```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm pack --pack-destination ../artifacts
-# Inside the n8n environment, with the archive copied to /tmp:
-cd ~/.n8n/nodes
-npm install --omit=dev --legacy-peer-deps /tmp/social-media-scheduler-n8n-nodes-social-media-scheduler-0.2.0.tgz
-# Restart n8n to load the package.
+```
+@social-media-scheduler/n8n-nodes-social-media-scheduler
 ```
 
-Podman can run the self-hosted n8n container and install the archive with `podman cp` and `podman exec`.
+## Operations
 
-## Authentication
+The package contains two nodes.
 
-Create an API key in So-me Studio's **Settings → API Keys**, then create a **Social media studio API** credential in n8n. Use the default API base URL for the hosted service or set it to your self-hosted backend. New posting features use the `/mcp/posting` endpoint; other operations use `/v1`. The account must have the corresponding API/MCP access and available credits. Webhook subscriptions require a supported plan.
-
-## Included nodes and operations
-
-**Social media studio** exposes 41 operations in four resources:
+### Social Media Studio
 
 | Resource | Operations |
 |---|---|
-| Post | Create, get, list, update, delete, schedule, unschedule, retry, resubmit, bulk delete, calendar |
-| Draft | Create, get, list, update, delete, convert to post |
-| Media | Upload, presign upload, upload to library, presign library upload, get/verify upload, list, search, validate, get rules, delete, bulk delete, move, rename, create/list/rename/move/delete folders |
-| Social Account | Get, list, TikTok creator info, Pinterest boards, Discord channels, Slack channels |
+| Post | Create, Get, Get Many, Update, Delete, Schedule, Unschedule, Retry, Resubmit, Bulk Delete, Get Calendar |
+| Draft | Create, Get, Get Many, Update, Delete, Convert to Post |
+| Media | Upload, Upload to Library, Presign Upload, Presign Library Upload, Get File, Get Many Files, Search, Validate, Get Rules, Delete, Bulk Delete, Move File, Rename File, Create Folder, Get Many Folders, Rename Folder, Move Folder, Delete Folder |
+| Social Account | Get, Get Many, Get TikTok Creator Info, List Pinterest Boards, List Discord Channels, List Slack Channels |
 
-**Social media studio Trigger** subscribes to publishing events and verifies incoming signatures.
+Posts and drafts can go to Twitter/X, Instagram, LinkedIn (personal and Page), Facebook, TikTok, YouTube, Threads, Pinterest, Dribbble, Bluesky, Mastodon, WordPress, Dev.to, Discord, and Slack. The post types and options that you can use depend on the destination account.
 
-The posting platform choices are Twitter/X, Instagram, LinkedIn personal and page, Facebook, TikTok, YouTube, Threads, WhatsApp, Pinterest, Dribbble, Bluesky, Mastodon, WordPress, Dev.to, Telegram, Discord, and Slack. Reddit and Google Business Profile are outside this release's posting scope. Available post types and options depend on the destination account.
+The n8n AI Agent can use this node as a tool.
 
-## Threads, first comments, and media
+### Social Media Studio Trigger
 
-Post create/update/schedule and draft create/update/convert expose **Thread Parts** and **First Comment**. The head uses **Text**, followed by the thread parts in order. Parts accept text, media library file IDs, or both. Threads are supported on Twitter/X, Threads, Bluesky, and Mastodon. The backend validates each platform's limits.
+Starts a workflow on these events:
 
-Use **Media Library File IDs** to attach existing uploaded files. On update or schedule/convert, explicit **Clear Media**, **Clear Thread**, and **Clear First Comment** controls distinguish removal from leaving an existing value unchanged. Typed options take precedence over the corresponding metadata fields.
+| Event | Fires when |
+|---|---|
+| `post.created` | A post is created. |
+| `post.scheduled` | A post is scheduled. |
+| `post.published` | A post is published on the platform. |
+| `post.failed` | A post fails to publish. |
+| `draft.converted` | A draft is converted to a post. |
+| `quota.limit_reached` | The plan reaches a usage limit. |
 
-Use **Upload to Library** for binary input: the node creates a library upload, sends the bytes to the presigned storage URL, then verifies the stored object. For external uploaders, use **Presign Library Upload**, PUT the bytes, and call **Get** with **Verify Upload** enabled before attaching the returned file IDs. Legacy URL upload operations remain available.
+When you activate the workflow, the trigger registers a webhook subscription in Social media studio. When you deactivate the workflow, it removes the subscription. The trigger checks the HMAC-SHA256 signature of each delivery and answers HTTP 401 to a missing or wrong signature. Keep **Verify Signature** on, except for debugging.
 
-**Media → Validate** checks files against destination rules, and **Get Rules** returns the platform constraints. Check validation results before scheduling.
+## Credentials
 
-## TikTok
+The nodes use an API key.
 
-Read **Social Account → TikTok Creator Info**, then choose an allowed privacy level explicitly. TikTok Options also support comments, duet, stitch, brand content, and brand organic settings. The backend rejects missing or disallowed privacy levels. Explicit `false` settings are preserved.
+1. [Sign up](https://app.so-me.studio/signup) for Social media studio.
+2. Connect at least one social account in the Social media studio dashboard.
+3. Go to **Settings → API Keys** and create a key.
+4. In n8n, create a **Social Media Studio API** credential and paste the key. n8n tests the key when you save the credential.
 
-Social account results include capability information for threads and first comments. Unsupported first comments can produce warnings; callers should inspect the result.
+Keep the default **Base URL** (`https://api.so-me.studio`) unless you run your own Social media studio backend. Your plan must include API access, and some operations use plan credits. Webhook subscriptions need a plan that includes webhooks. See [Authentication](https://docs.so-me.studio/authentication).
 
-## Trigger events
+## Compatibility
 
-The release includes `post.created`, `post.scheduled`, `post.published`, `post.failed`, `draft.converted`, and `quota.limit_reached`.
+- Requires n8n with community nodes enabled (`n8nNodesApiVersion` 1).
+- Built against `n8n-workflow` 2.16.
+- The package has no runtime dependencies.
 
-Activation registers the workflow webhook URL and saves the subscription secret. Incoming POST bodies are checked with HMAC-SHA256; missing or invalid signatures receive HTTP 401. Only selected events start the workflow. Keep **Verify Signature** enabled outside debugging. The backend must be able to reach n8n's configured webhook URL.
+## Usage
 
-## Development and checks
+### Publish a post with an image
+
+1. Add a **Social Media Studio** node with **Media → Upload to Library**. Set **Binary Property** to the binary field that holds the image. The node uploads and verifies the file and returns its file ID.
+2. Add a second **Social Media Studio** node with **Post → Create**. Set **Platform** and **Post Type**, then select the destination in **Account Name or ID**.
+3. Put the file ID from step 1 in **Media Library File IDs**, write the **Text**, and set **Schedule For**. Leave **Schedule For** empty to publish now.
+
+Run **Media → Validate** before you schedule a post. It checks each file against the rules of each destination. **Media → Get Rules** returns the limits of each platform.
+
+### Threads and first comments
+
+**Post → Create**, **Update**, and **Schedule**, and **Draft → Create**, **Update**, and **Convert to Post**, have **Thread Parts** and **First Comment** fields. The **Text** field is the first part of the thread, and the thread parts follow in order. Each part can have text, media library file IDs, or both. Threads work on Twitter/X, Threads, Bluesky, and Mastodon.
+
+To remove a value from an existing post or draft, use **Clear Media**, **Clear Thread**, or **Clear First Comment**. An empty field keeps the current value.
+
+### Uploads from other tools
+
+To upload bytes from outside n8n, use **Media → Presign Library Upload**, send the bytes with an HTTP PUT to the returned URL, then run **Media → Get File** with **Verify Upload** on. Attach the file IDs after the verification.
+
+### TikTok
+
+Run **Social Account → Get TikTok Creator Info** first. Then choose one of the returned privacy levels in **TikTok Options → Privacy Level**. TikTok refuses a post without an allowed privacy level. **TikTok Options** also controls comments, duet, stitch, and branded content.
+
+### Trigger
+
+Social media studio must be able to reach the n8n webhook URL. A self-hosted n8n on `localhost` needs a public URL, for example a tunnel, before the trigger can receive events.
+
+## Resources
+
+- [n8n community nodes documentation](https://docs.n8n.io/integrations/#community-nodes)
+- [Social media studio n8n guide](https://docs.so-me.studio/integrations/n8n)
+- [Social media studio API documentation](https://docs.so-me.studio)
+- [Webhook payloads](https://docs.so-me.studio/webhooks/payloads)
+
+## Development
 
 ```sh
 pnpm install --frozen-lockfile
@@ -71,8 +108,14 @@ pnpm test
 pnpm build
 ```
 
-Tests cover the operation inventory, request mapping, thread and media options, error handling, MCP JSON/SSE responses, and webhook signatures and subscription lifecycle. Local integration testing should also run the packed artifact inside n8n against an isolated backend and storage service.
+The tests cover the operation list, request mapping, thread and media options, error handling, MCP JSON and SSE responses, webhook signatures, and the subscription lifecycle.
+
+## Version history
+
+- **0.2.1** — Passes the n8n community package scan: title-case credential name, supported node categories, and correct codex node IDs. Removes WhatsApp and Telegram from the posting platforms, because Social media studio cannot publish to them. Removes unused code for deferred features.
+- **0.2.0** — Posting-only release: posts, drafts, media, social accounts, thread parts, first comments, TikTok options, media validation, and six publishing events.
+- **0.1.x** — First releases.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT — see [LICENSE.md](./LICENSE.md).

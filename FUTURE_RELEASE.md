@@ -8,7 +8,7 @@ The initial n8n release is intentionally focused on the highest-value publishing
 - Social accounts
 - Essential publishing webhook events
 
-The implementations below remain in the repository, but are not exposed in the n8n node yet. They can be promoted into a later release after the core publishing flow has production usage and dedicated integration tests.
+The resources below are not part of this package. Their earlier implementations are in the git history of this repository (commit `b2eab5e` and before). They can be promoted into a later release after the core publishing flow has production usage and dedicated integration tests.
 
 ## Deferred resources
 

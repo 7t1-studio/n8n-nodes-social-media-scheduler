@@ -172,6 +172,20 @@ describe('every exposed posting operation', () => {
 	}
 });
 
+describe('single delete operations', () => {
+	for (const [resource, operation] of [
+		['post', 'delete'],
+		['draft', 'delete'],
+		['media', 'delete'],
+		['media', 'deleteFolder'],
+	])
+		it(`${resource}.${operation} returns deleted true for an empty response`, async () => {
+			const { ctx } = context({ ...input, resource, operation }, '');
+			const output = await node.execute.call(ctx as never);
+			expect(output[0]).toEqual([{ json: { deleted: true }, pairedItem: { item: 0 } }]);
+		});
+});
+
 describe('posting options and HTTP failure handling', () => {
 	for (const returnAll of [true, false])
 		it(`media search sends the backend name filter (returnAll=${returnAll})`, async () => {
