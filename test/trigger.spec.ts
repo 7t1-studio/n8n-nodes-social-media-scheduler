@@ -144,6 +144,87 @@ describe('actual trigger implementation', () => {
 			await node.webhookMethods.default.checkExists.call(ctx as never),
 		).toBe(false);
 	});
+	it('finds its subscription past the first page of 100', async () => {
+		const { ctx, request, data } = context();
+		const others = Array.from({ length: 100 }, (_, i) => ({
+			id: `other-${i}`,
+			url: `https://qa.example.test/other-${i}`,
+			secret: 'other',
+		}));
+		request
+			.mockResolvedValueOnce({ data: others, meta: { totalPages: 2 } } as never)
+			.mockResolvedValueOnce({
+				data: [
+					{
+						id: 'subscription-1',
+						url: 'https://qa.example.test/webhook',
+						secret: 'kept',
+						events: ['post.published'],
+					},
+				],
+				meta: { totalPages: 2 },
+			} as never);
+		expect(
+			await node.webhookMethods.default.checkExists.call(ctx as never),
+		).toBe(true);
+		expect(request).toHaveBeenCalledTimes(2);
+		expect(request.mock.calls.map((call) => (call as unknown[])[1])).toEqual([
+			expect.objectContaining({ method: 'GET', qs: { page: 1, limit: 100 } }),
+			expect.objectContaining({ method: 'GET', qs: { page: 2, limit: 100 } }),
+		]);
+		expect(data).toMatchObject({ subscriptionId: 'subscription-1', secret: 'kept' });
+	});
+	it('deletes a subscription without a usable secret before creating a new one', async () => {
+		const { ctx, request, data } = context();
+		delete data.secret;
+		request.mockResolvedValueOnce([
+			{ id: 'subscription-1', url: 'https://qa.example.test/webhook' },
+		] as never);
+		expect(
+			await node.webhookMethods.default.checkExists.call(ctx as never),
+		).toBe(false);
+		await node.webhookMethods.default.create.call(ctx as never);
+		const calls = request.mock.calls.map(
+			(call) => (call as unknown[])[1] as { method: string; url: string },
+		);
+		expect(calls.map(({ method, url }) => `${method} ${url}`)).toEqual([
+			'GET http://localhost:18080/v1/webhooks/subscriptions',
+			'DELETE http://localhost:18080/v1/webhooks/subscriptions/subscription-1',
+			'POST http://localhost:18080/v1/webhooks/subscriptions',
+		]);
+		expect(data).toMatchObject({
+			subscriptionId: 'subscription-2',
+			secret: 'created-secret',
+		});
+	});
+	it('keeps the subscription with a secret and deletes other ones for the same URL', async () => {
+		const { ctx, request, data } = context();
+		delete data.secret;
+		request.mockResolvedValueOnce([
+			{ id: 'no-secret', url: 'https://qa.example.test/webhook' },
+			{
+				id: 'with-secret',
+				url: 'https://qa.example.test/webhook',
+				secret: 'recovered',
+				events: ['post.published'],
+			},
+			{
+				id: 'duplicate',
+				url: 'https://qa.example.test/webhook',
+				secret: 'other',
+				events: ['post.published'],
+			},
+		] as never);
+		expect(
+			await node.webhookMethods.default.checkExists.call(ctx as never),
+		).toBe(true);
+		const deleted = request.mock.calls
+			.map((call) => (call as unknown[])[1] as { method: string; url: string })
+			.filter(({ method }) => method === 'DELETE')
+			.map(({ url }) => url.split('/').pop());
+		expect(deleted).toEqual(['no-secret', 'duplicate']);
+		expect(data).toMatchObject({ subscriptionId: 'with-secret', secret: 'recovered' });
+	});
 	it('clears static state only after successful deletion', async () => {
 		const { ctx, data } = context();
 		await node.webhookMethods.default.delete.call(ctx as never);

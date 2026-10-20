@@ -9,7 +9,10 @@ import {
 	NodeOperationError,
 } from 'n8n-workflow';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { soMeApiRequest } from '../SocialMediaStudio/GenericFunctions';
+import {
+	soMeApiRequest,
+	soMeApiRequestAllItems,
+} from '../SocialMediaStudio/GenericFunctions';
 import { categoriesForEvents, eventOptionsForTrigger } from './events';
 
 interface SubscriptionResponse {
@@ -79,24 +82,28 @@ export class SocialMediaStudioTrigger implements INodeType {
 				const webhookUrl = this.getNodeWebhookUrl('default');
 				const staticData = this.getWorkflowStaticData('node') as IDataObject;
 
-				const response = (await soMeApiRequest.call(
+				// Every page: the subscription of this workflow can be past the first 100.
+				const subscriptions = (await soMeApiRequestAllItems.call(
 					this,
 					'GET',
 					'/v1/webhooks/subscriptions',
-					undefined,
-					{ page: 1, limit: 100 },
-				)) as { data?: SubscriptionResponse[] } | SubscriptionResponse[];
+				)) as unknown as SubscriptionResponse[];
 
-				const list = Array.isArray(response)
-					? response
-					: (response?.data ?? []);
-				const match = list.find((s) => s.url === webhookUrl);
+				const secretOf = (subscription: SubscriptionResponse) =>
+					subscription.secret ||
+					(staticData.subscriptionId === subscription.id
+						? (staticData.secret as string | undefined)
+						: undefined);
+				const matches = subscriptions.filter((s) => s.url === webhookUrl);
+				const match = matches.find((s) => secretOf(s));
+				// The trigger cannot verify a delivery whose secret it does not know,
+				// and a second subscription for this URL delivers every event twice.
+				// Remove those, so that create() leaves exactly one subscription.
+				for (const other of matches)
+					if (other !== match) await deleteSubscription.call(this, other.id);
 
 				if (match) {
-					const secret =
-						match.secret ||
-						(staticData.subscriptionId === match.id && staticData.secret);
-					if (!secret) return false;
+					const secret = secretOf(match);
 					const events = this.getNodeParameter('events') as string[];
 					if (!events?.length) {
 						throw new NodeOperationError(
@@ -166,17 +173,7 @@ export class SocialMediaStudioTrigger implements INodeType {
 				const id = staticData.subscriptionId as string | undefined;
 				if (!id) return true;
 
-				try {
-					await soMeApiRequest.call(
-						this,
-						'DELETE',
-						`/v1/webhooks/subscriptions/${id}`,
-					);
-				} catch (error) {
-					// Only an already deleted subscription is successful cleanup.
-					if ((error as { httpCode?: string }).httpCode !== '404')
-						throw new NodeOperationError(this.getNode(), error as Error);
-				}
+				await deleteSubscription.call(this, id);
 
 				delete staticData.subscriptionId;
 				delete staticData.secret;
@@ -251,6 +248,16 @@ export class SocialMediaStudioTrigger implements INodeType {
 		return {
 			workflowData: [this.helpers.returnJsonArray([payload])],
 		};
+	}
+}
+
+async function deleteSubscription(this: IHookFunctions, id: string): Promise<void> {
+	try {
+		await soMeApiRequest.call(this, 'DELETE', `/v1/webhooks/subscriptions/${id}`);
+	} catch (error) {
+		// Only an already deleted subscription is successful cleanup.
+		if ((error as { httpCode?: string }).httpCode !== '404')
+			throw new NodeOperationError(this.getNode(), error as Error);
 	}
 }
 
