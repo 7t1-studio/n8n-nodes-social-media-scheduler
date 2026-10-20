@@ -5,6 +5,7 @@ import {
 	listLimit,
 	parseJsonParameter,
 	resourceLocator,
+	toApiDateTime,
 	unsupportedOperation,
 } from './common';
 import { parseFileIds, postingTool } from '../PostingFunctions';
@@ -172,7 +173,7 @@ export const postFields: INodeProperties[] = [
 		type: 'dateTime',
 		default: '',
 		displayOptions: showFor(['create']),
-		description: 'When to publish the post. Leave empty to publish now.',
+		description: 'When to publish the post, in the time zone of the workflow. Leave empty to publish now.',
 	},
 
 	// ── Update ──────────────────────────────────────────────────
@@ -208,7 +209,7 @@ export const postFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: showFor(['schedule']),
-		description: 'When to publish the post. Must be in the future.',
+		description: 'When to publish the post, in the time zone of the workflow. Must be in the future.',
 	},
 
 	// ── Media (create only: the API cannot change the media of a post) ──
@@ -502,11 +503,10 @@ export async function executePost(
 			) as string;
 			const postType = this.getNodeParameter('postType', itemIndex) as string;
 			const accountId = getResourceId.call(this, 'accountId', itemIndex);
-			const scheduledAt = this.getNodeParameter(
-				'scheduledAt',
-				itemIndex,
-				'',
-			) as string;
+			const scheduledAt = toApiDateTime.call(
+				this,
+				this.getNodeParameter('scheduledAt', itemIndex, ''),
+			);
 			const files = buildFiles(this.getNodeParameter('files', itemIndex, {}));
 			const metaData = parseJsonParameter.call(
 				this,
@@ -558,8 +558,14 @@ export async function executePost(
 		}
 
 		case 'getCalendar': {
-			const startDate = this.getNodeParameter('startDate', itemIndex) as string;
-			const endDate = this.getNodeParameter('endDate', itemIndex) as string;
+			const startDate = toApiDateTime.call(
+				this,
+				this.getNodeParameter('startDate', itemIndex),
+			);
+			const endDate = toApiDateTime.call(
+				this,
+				this.getNodeParameter('endDate', itemIndex),
+			);
 			return await soMeApiRequest.call(
 				this,
 				'GET',
@@ -587,6 +593,8 @@ export async function executePost(
 			);
 
 			const body: IDataObject = { ...updateFields };
+			if (updateFields.scheduledAt)
+				body.scheduledAt = toApiDateTime.call(this, updateFields.scheduledAt);
 			if (metaData) body.metaData = metaData;
 
 			applyPostOptions(body, {
@@ -623,10 +631,10 @@ export async function executePost(
 
 		case 'schedule': {
 			const postId = getResourceId.call(this, 'postId', itemIndex);
-			const scheduleFor = this.getNodeParameter(
-				'scheduleFor',
-				itemIndex,
-			) as string;
+			const scheduleFor = toApiDateTime.call(
+				this,
+				this.getNodeParameter('scheduleFor', itemIndex),
+			);
 			const body: IDataObject = { scheduledAt: scheduleFor };
 			applyPostOptions(body, {
 				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),

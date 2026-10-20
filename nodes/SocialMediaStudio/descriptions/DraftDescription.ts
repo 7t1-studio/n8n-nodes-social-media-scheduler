@@ -10,6 +10,7 @@ import {
 	parseJsonParameter,
 	resourceIdFrom,
 	resourceLocator,
+	toApiDateTime,
 	unsupportedOperation,
 } from './common';
 
@@ -181,7 +182,7 @@ export const draftFields: INodeProperties[] = [
 		type: 'dateTime',
 		default: '',
 		displayOptions: showFor(['convert']),
-		description: 'When to publish the post. Leave empty to publish now.',
+		description: 'When to publish the post, in the time zone of the workflow. Leave empty to publish now.',
 	},
 	...sharedPostFields(
 		['libraryFileIds', 'threadParts', 'firstComment', 'tiktok', 'metaData'],
@@ -273,11 +274,10 @@ export async function executeDraft(
 		}
 		case 'convert': {
 			const id = getResourceId.call(this, 'draftId', itemIndex);
-			const scheduledAt = this.getNodeParameter(
-				'scheduledAt',
-				itemIndex,
-				'',
-			) as string;
+			const scheduledAt = toApiDateTime.call(
+				this,
+				this.getNodeParameter('scheduledAt', itemIndex, ''),
+			);
 			const body: IDataObject = {};
 			if (scheduledAt) body.scheduledAt = scheduledAt;
 			const accountId = getResourceId.call(this, 'accountId', itemIndex);

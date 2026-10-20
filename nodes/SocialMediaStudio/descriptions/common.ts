@@ -96,6 +96,74 @@ export function listLimit(
 		: (this.getNodeParameter('limit', itemIndex, 50) as number);
 }
 
+const OFFSET_SUFFIX = /(?:[zZ]|[+-]\d{2}:?\d{2})$/;
+const WALL_TIME = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?)?$/;
+
+/** Milliseconds that the time zone is ahead of UTC at the given instant. */
+function zoneOffset(instant: number, timeZone: string): number {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		hourCycle: 'h23',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+	}).formatToParts(new Date(instant));
+	const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+	const asUtc = Date.UTC(
+		part('year'),
+		part('month') - 1,
+		part('day'),
+		part('hour'),
+		part('minute'),
+		part('second'),
+	);
+	return asUtc - Math.floor(instant / 1000) * 1000;
+}
+
+/**
+ * n8n date fields hold a wall time in the workflow's time zone, without an
+ * offset. The API reads a time without an offset in the server's time zone,
+ * so the node sends the absolute time in UTC instead.
+ */
+export function toApiDateTime(this: IExecuteFunctions, value: unknown): string {
+	if (value === undefined || value === null || value === '') return '';
+	if (value instanceof Date) return value.toISOString();
+	if (typeof value === 'object' && typeof (value as { toISO?: unknown }).toISO === 'function') {
+		// A Luxon DateTime from an expression already knows its zone.
+		return (value as { toUTC: () => { toISO: () => string } }).toUTC().toISO();
+	}
+	const text = String(value).trim();
+	if (OFFSET_SUFFIX.test(text)) {
+		const instant = Date.parse(text);
+		return Number.isNaN(instant) ? text : new Date(instant).toISOString();
+	}
+	const match = WALL_TIME.exec(text);
+	if (!match) return text;
+	const [, year, month, day, hour = '0', minute = '0', second = '0', ms = '0'] = match;
+	const wall = Date.UTC(
+		Number(year),
+		Number(month) - 1,
+		Number(day),
+		Number(hour),
+		Number(minute),
+		Number(second),
+		Number(ms.padEnd(3, '0')),
+	);
+	try {
+		const timeZone = this.getTimezone();
+		let instant = wall - zoneOffset(wall, timeZone);
+		// Near a daylight saving change the offset at the result can differ.
+		const corrected = zoneOffset(instant, timeZone);
+		if (corrected !== wall - instant) instant = wall - corrected;
+		return new Date(instant).toISOString();
+	} catch {
+		return text;
+	}
+}
+
 export function parseJsonParameter(
 	this: IExecuteFunctions,
 	name: string,
