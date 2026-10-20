@@ -20,11 +20,12 @@ export const SO_ME_EVENTS: EventDef[] = [
 	{ value: 'quota.limit_reached', name: 'Quota Limit Reached', category: 'Quota' },
 ];
 
+/** Sorted by name, as the n8n UX guidelines ask for dropdowns. */
 export function eventOptionsForTrigger(): { name: string; value: string }[] {
 	return SO_ME_EVENTS.map((e) => ({
 		name: `${e.category}: ${e.name}`,
 		value: e.value,
-	}));
+	})).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**

@@ -67,7 +67,7 @@ export const postOperations: INodeProperties[] = [
 			{
 				name: 'Get Many',
 				value: 'getMany',
-				description: 'List posts (paginated)',
+				description: 'Retrieve a list of posts',
 				action: 'Get many posts',
 			},
 			{
@@ -105,33 +105,9 @@ export const postOperations: INodeProperties[] = [
 	},
 ];
 
+// The order of this list is the order in the editor: the fields that every
+// operation needs come first, the optional ones after.
 export const postFields: INodeProperties[] = [
-	// Create only: the API cannot change the media of an existing post.
-	{
-		displayName: 'Media Library File IDs',
-		name: 'libraryFileIds',
-		type: 'string',
-		default: '',
-		displayOptions: showFor(['create']),
-		description:
-			'Comma-separated uploaded library UUIDs. Use Media → Upload to Library, then verify the upload.',
-	},
-	{
-		displayName: 'Clear Thread',
-		name: 'clearThread',
-		type: 'boolean',
-		default: false,
-		displayOptions: showFor(['update', 'schedule']),
-		description: 'Whether to remove the existing thread parts',
-	},
-	{
-		displayName: 'Clear First Comment',
-		name: 'clearFirstComment',
-		type: 'boolean',
-		default: false,
-		displayOptions: showFor(['update', 'schedule']),
-		description: 'Whether to remove the existing first comment',
-	},
 	// ── Common: post ID ─────────────────────────────────────────
 	resourceLocator({
 		displayName: 'Post',
@@ -160,7 +136,7 @@ export const postFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: showFor(['create']),
-		description: 'Post body / caption text',
+		description: 'The text or caption of the post',
 	},
 	{
 		displayName: 'Platform',
@@ -196,8 +172,54 @@ export const postFields: INodeProperties[] = [
 		type: 'dateTime',
 		default: '',
 		displayOptions: showFor(['create']),
+		description: 'When to publish the post. Leave empty to publish now.',
+	},
+
+	// ── Update ──────────────────────────────────────────────────
+	{
+		displayName: 'Update Fields',
+		name: 'updateFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: showFor(['update']),
+		options: [
+			{
+				displayName: 'Text',
+				name: 'text',
+				type: 'string',
+				typeOptions: { rows: 4 },
+				default: '',
+			},
+			{
+				displayName: 'Schedule For',
+				name: 'scheduledAt',
+				type: 'dateTime',
+				default: '',
+			},
+		],
+	},
+
+	// ── Schedule ────────────────────────────────────────────────
+	{
+		displayName: 'Schedule For',
+		name: 'scheduleFor',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: showFor(['schedule']),
+		description: 'When to publish the post. Must be in the future.',
+	},
+
+	// ── Media (create only: the API cannot change the media of a post) ──
+	{
+		displayName: 'Media Library File IDs',
+		name: 'libraryFileIds',
+		type: 'string',
+		default: '',
+		displayOptions: showFor(['create']),
 		description:
-			'ISO 8601 datetime to publish at. Leave empty for immediate publishing.',
+			'Comma-separated IDs of media library files. Use Media → Upload to Library, which also checks the upload.',
 	},
 	{
 		displayName: 'Files',
@@ -207,7 +229,7 @@ export const postFields: INodeProperties[] = [
 		default: {},
 		displayOptions: showFor(['create']),
 		description:
-			'Media files to attach. First call the Media → Presign Upload operation to get s3Prefix + fileSrc.',
+			'Files uploaded with Media → Upload or Media → Get Upload URL. Copy the file URL and storage key from that output. Leave empty when you use Media Library File IDs.',
 		options: [
 			{
 				name: 'file',
@@ -225,12 +247,14 @@ export const postFields: INodeProperties[] = [
 						name: 'id',
 						type: 'string',
 						default: '',
+						description: 'The file ID that the upload returned',
 					},
 					{
-						displayName: 'File Src URL',
+						displayName: 'File URL',
 						name: 'fileSrc',
 						type: 'string',
 						default: '',
+						description: 'The file URL that the upload returned',
 					},
 					{
 						displayName: 'Filename',
@@ -245,21 +269,24 @@ export const postFields: INodeProperties[] = [
 						default: '',
 					},
 					{
-						displayName: 'S3 Prefix',
-						name: 's3Prefix',
-						type: 'string',
-						default: '',
-					},
-					{
 						displayName: 'Size (Bytes)',
 						name: 'size',
 						type: 'number',
 						default: 0,
 					},
+					{
+						displayName: 'Storage Key',
+						name: 's3Prefix',
+						type: 'string',
+						default: '',
+						description: 'The storage key that the upload returned',
+					},
 				],
 			},
 		],
 	},
+
+	// ── Posting options ─────────────────────────────────────────
 	{
 		displayName: 'Thread Parts',
 		name: 'threadParts',
@@ -267,7 +294,7 @@ export const postFields: INodeProperties[] = [
 		typeOptions: { multipleValues: true, sortable: true },
 		default: {},
 		displayOptions: showFor(['create', 'update', 'schedule']),
-		description: `Posts that follow the head post, in order. The Text field above is the head post, so the first part here is the second post of the chain. Supported on ${THREAD_PLATFORMS.join(', ')}; any other platform returns an error. Limits per part: TWITTER 280 characters, THREADS 500, BLUESKY 300 graphemes, MASTODON 500; 24 parts at most.`,
+		description: `Posts that follow the head post, in order. The Text field above is the head post, so the first part here is the second post of the chain. Supported on ${platformNames(THREAD_PLATFORMS)}; any other platform returns an error. Limits per part: Twitter / X 280 characters, Threads 500, Bluesky 300, Mastodon 500; 24 parts at most.`,
 		options: [
 			{
 				name: 'part',
@@ -287,7 +314,7 @@ export const postFields: INodeProperties[] = [
 						type: 'string',
 						default: '',
 						description:
-							'Comma-separated media library UUIDs to attach to this part. The file must stay in the library until the post publishes.',
+							'Comma-separated IDs of media library files to attach to this part. The file must stay in the library until the post publishes.',
 					},
 				],
 			},
@@ -366,43 +393,23 @@ export const postFields: INodeProperties[] = [
 		default: '',
 		displayOptions: showFor(['create', 'update']),
 		description:
-			'Platform-specific metadata as JSON (hashtags, mentions, location, etc.). The typed fields above win over the same feature in this JSON.',
+			'Platform options as JSON, for example hashtags, mentions or a location. The fields above win over the same option in this JSON.',
 	},
-
-	// ── Update ──────────────────────────────────────────────────
 	{
-		displayName: 'Update Fields',
-		name: 'updateFields',
-		type: 'collection',
-		placeholder: 'Add Field',
-		default: {},
-		displayOptions: showFor(['update']),
-		options: [
-			{
-				displayName: 'Text',
-				name: 'text',
-				type: 'string',
-				typeOptions: { rows: 4 },
-				default: '',
-			},
-			{
-				displayName: 'Schedule For',
-				name: 'scheduledAt',
-				type: 'dateTime',
-				default: '',
-			},
-		],
+		displayName: 'Clear Thread',
+		name: 'clearThread',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update', 'schedule']),
+		description: 'Whether to remove the existing thread parts',
 	},
-
-	// ── Schedule ────────────────────────────────────────────────
 	{
-		displayName: 'Schedule For',
-		name: 'scheduleFor',
-		type: 'dateTime',
-		required: true,
-		default: '',
-		displayOptions: showFor(['schedule']),
-		description: 'ISO 8601 datetime — must be in the future',
+		displayName: 'Clear First Comment',
+		name: 'clearFirstComment',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update', 'schedule']),
+		description: 'Whether to remove the existing first comment',
 	},
 
 	// ── Get Many ────────────────────────────────────────────────
@@ -438,14 +445,14 @@ export const postFields: INodeProperties[] = [
 				name: 'status',
 				type: 'options',
 				default: '',
-				options: [{ name: '— Any —', value: '' }, ...POST_STATUS_OPTIONS],
+				options: [{ name: 'All', value: '' }, ...POST_STATUS_OPTIONS],
 			},
 			{
 				displayName: 'Platform',
 				name: 'socialMedia',
 				type: 'options',
 				default: '',
-				options: [{ name: '— Any —', value: '' }, ...SOCIAL_MEDIA_OPTIONS],
+				options: [{ name: 'All', value: '' }, ...SOCIAL_MEDIA_OPTIONS],
 			},
 		],
 	},
@@ -477,7 +484,7 @@ export const postFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: showFor(['bulkDelete']),
-		description: 'Comma- or newline-separated list of post UUIDs',
+		description: 'Comma- or newline-separated list of post IDs',
 	},
 ];
 

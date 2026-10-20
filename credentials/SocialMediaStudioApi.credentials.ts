@@ -23,7 +23,7 @@ export class SocialMediaStudioApi implements ICredentialType {
 			default: '',
 			required: true,
 			description:
-				'Create an API key in the so-me.studio dashboard at Settings → API Keys.',
+				'Create an API key in Social Media Studio at Settings → API Keys.',
 		},
 		{
 			displayName: 'Base URL',
@@ -31,7 +31,7 @@ export class SocialMediaStudioApi implements ICredentialType {
 			type: 'string',
 			default: 'https://api.so-me.studio',
 			description:
-				'The so-me.studio API base URL. Override only if you are running a self-hosted instance.',
+				'The address of the Social Media Studio API. Keep the default. Change it only to test against another API host.',
 		},
 	];
 
@@ -44,9 +44,10 @@ export class SocialMediaStudioApi implements ICredentialType {
 		},
 	};
 
+	// The same default as the nodes, so an emptied Base URL still tests the key.
 	test: ICredentialTestRequest = {
 		request: {
-			baseURL: '={{ $credentials.baseUrl }}',
+			baseURL: '={{ $credentials.baseUrl || "https://api.so-me.studio" }}',
 			url: '/v1/settings/profile',
 			method: 'GET',
 		},

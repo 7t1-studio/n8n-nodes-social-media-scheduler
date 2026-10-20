@@ -63,7 +63,7 @@ export class SocialMediaStudioTrigger implements INodeType {
 				type: 'string',
 				default: '',
 				description:
-					'Optional description shown in the so-me.studio webhook subscriptions list. Defaults to the workflow name.',
+					'Shown in the webhook list of Social Media Studio. Leave empty to use the workflow name.',
 			},
 			{
 				displayName: 'Verify Signature',

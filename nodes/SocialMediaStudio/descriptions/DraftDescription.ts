@@ -42,50 +42,60 @@ export const draftOperations: INodeProperties[] = [
 			{
 				name: 'Convert to Post',
 				value: 'convert',
+				description:
+					'Turn a draft into a post that publishes now or at a set time',
 				action: 'Convert draft to post',
 			},
-			{ name: 'Create', value: 'create', action: 'Create a draft' },
-			{ name: 'Delete', value: 'delete', action: 'Delete a draft' },
-			{ name: 'Get', value: 'get', action: 'Get a draft' },
-			{ name: 'Get Many', value: 'getMany', action: 'Get many drafts' },
-			{ name: 'Update', value: 'update', action: 'Update a draft' },
+			{
+				name: 'Create',
+				value: 'create',
+				description: 'Create a new draft',
+				action: 'Create a draft',
+			},
+			{
+				name: 'Delete',
+				value: 'delete',
+				description: 'Delete a draft',
+				action: 'Delete a draft',
+			},
+			{
+				name: 'Get',
+				value: 'get',
+				description: 'Retrieve a draft',
+				action: 'Get a draft',
+			},
+			{
+				name: 'Get Many',
+				value: 'getMany',
+				description: 'Retrieve a list of drafts',
+				action: 'Get many drafts',
+			},
+			{
+				name: 'Update',
+				value: 'update',
+				description: 'Update a draft',
+				action: 'Update a draft',
+			},
 		],
 		default: 'create',
 	},
 ];
 
-export const draftFields: INodeProperties[] = [
-	...postFields
-		.filter((field) =>
-			[
-				'threadParts',
-				'firstComment',
-				'tiktok',
-				'libraryFileIds',
-				'metaData',
-				'clearThread',
-				'clearFirstComment',
-			].includes(field.name),
-		)
+/** Post fields that drafts share, shown for the given draft operations. */
+const sharedPostFields = (
+	names: string[],
+	operations: (name: string) => string[],
+): INodeProperties[] =>
+	postFields
+		.filter((field) => names.includes(field.name))
 		.map((field) => ({
 			...field,
-			displayOptions: showFor(
-				field.name === 'tiktok' || field.name === 'libraryFileIds'
-					? ['create', 'update', 'convert']
-					: field.name.startsWith('clear')
-						? ['update']
-						: ['create', 'update'],
-			),
-		})),
-	// Drafts keep their media editable through MCP update_draft, unlike posts.
-	{
-		displayName: 'Clear Media',
-		name: 'clearMedia',
-		type: 'boolean',
-		default: false,
-		displayOptions: showFor(['update']),
-		description: 'Whether to remove all existing media attachments',
-	},
+			displayOptions: showFor(operations(field.name)),
+		}));
+
+// The order of this list is the order in the editor: the fields that every
+// operation needs come first, the optional ones after.
+export const draftFields: INodeProperties[] = [
 	resourceLocator({
 		displayName: 'Draft',
 		name: 'draftId',
@@ -171,9 +181,25 @@ export const draftFields: INodeProperties[] = [
 		type: 'dateTime',
 		default: '',
 		displayOptions: showFor(['convert']),
-		description:
-			'Optional ISO datetime — convert as scheduled post. Leave empty to publish immediately.',
+		description: 'When to publish the post. Leave empty to publish now.',
 	},
+	...sharedPostFields(
+		['libraryFileIds', 'threadParts', 'firstComment', 'tiktok', 'metaData'],
+		(name) =>
+			name === 'tiktok' || name === 'libraryFileIds'
+				? ['create', 'update', 'convert']
+				: ['create', 'update'],
+	),
+	// Drafts keep their media editable through MCP update_draft, unlike posts.
+	{
+		displayName: 'Clear Media',
+		name: 'clearMedia',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update']),
+		description: 'Whether to remove all existing media attachments',
+	},
+	...sharedPostFields(['clearThread', 'clearFirstComment'], () => ['update']),
 	{
 		displayName: 'Return All',
 		name: 'returnAll',

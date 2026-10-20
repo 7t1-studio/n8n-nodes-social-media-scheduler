@@ -46,75 +46,117 @@ export const mediaOperations: INodeProperties[] = [
 			{
 				name: 'Bulk Delete',
 				value: 'bulkDelete',
+				description: 'Delete many media library files at once',
 				action: 'Delete many files at once',
 			},
 			{
 				name: 'Create Folder',
 				value: 'createFolder',
+				description: 'Create a folder in the media library',
 				action: 'Create a folder',
 			},
-			{ name: 'Delete', value: 'delete', action: 'Delete a file' },
+			{
+				name: 'Delete',
+				value: 'delete',
+				description: 'Delete a file from the media library',
+				action: 'Delete a file',
+			},
 			{
 				name: 'Delete Folder',
 				value: 'deleteFolder',
+				description: 'Delete a media library folder and the files in it',
 				action: 'Delete a folder',
 			},
 			{
 				name: 'Get File',
 				value: 'get',
+				description:
+					'Retrieve a media library file, and optionally check that its upload is complete',
 				action: 'Get or verify an uploaded media file',
+			},
+			{
+				name: 'Get Library Upload URL',
+				value: 'presignLibraryUpload',
+				description:
+					'Reserve media library files and get a URL to upload each one from another tool',
+				action: 'Get an upload URL for each library file',
 			},
 			{
 				name: 'Get Many Files',
 				value: 'list',
-				action: 'List files and folders',
+				description:
+					'Retrieve a list of the files in the root folder of the media library',
+				action: 'List media files',
 			},
 			{
 				name: 'Get Many Folders',
 				value: 'listFolders',
+				description: 'Retrieve a list of the media library folders',
 				action: 'List media folders',
 			},
 			{
 				name: 'Get Rules',
 				value: 'getRules',
+				description:
+					'Retrieve the media limits of each platform and post type',
 				action: 'Get the media rules table',
+			},
+			{
+				name: 'Get Upload URL',
+				value: 'presignUpload',
+				description:
+					'Get a URL to upload a media file from another tool, for the Files field of Post → Create',
+				action: 'Get an upload URL for a media file',
 			},
 			{
 				name: 'Move File',
 				value: 'move',
+				description: 'Move a media library file to another folder',
 				action: 'Move a file to another folder',
 			},
-			{ name: 'Move Folder', value: 'moveFolder', action: 'Move a folder' },
 			{
-				name: 'Presign Library Upload',
-				value: 'presignLibraryUpload',
-				action: 'Reserve library files for upload',
+				name: 'Move Folder',
+				value: 'moveFolder',
+				description: 'Move a media library folder into another folder',
+				action: 'Move a folder',
 			},
 			{
-				name: 'Presign Upload',
-				value: 'presignUpload',
-				action: 'Get a presigned upload URL',
+				name: 'Rename File',
+				value: 'rename',
+				description: 'Rename a media library file',
+				action: 'Rename a file',
 			},
-			{ name: 'Rename File', value: 'rename', action: 'Rename a file' },
 			{
 				name: 'Rename Folder',
 				value: 'renameFolder',
+				description: 'Rename a media library folder',
 				action: 'Rename a folder',
 			},
-			{ name: 'Search', value: 'search', action: 'Search files by name' },
+			{
+				name: 'Search',
+				value: 'search',
+				description: 'Search the media library files of every folder by name',
+				action: 'Search files by name',
+			},
 			{
 				name: 'Upload',
 				value: 'upload',
+				description:
+					'Upload a media file from the input data, for the Files field of Post → Create',
 				action: 'Upload a file from a binary input',
 			},
 			{
 				name: 'Upload to Library',
 				value: 'uploadLibrary',
+				description:
+					'Upload a file from the input data to the media library and check the upload',
 				action: 'Upload and verify a library file',
 			},
 			{
 				name: 'Validate',
 				value: 'validate',
+				description:
+					'Check media library files against the rules of each destination',
 				action: 'Validate media against every destination',
 			},
 		],
@@ -157,14 +199,16 @@ export const mediaFields: INodeProperties[] = [
 		true,
 	),
 	// Upload (binary input)
+	// The parameter keeps its 0.2.0 name, so existing workflows keep working.
 	{
-		displayName: 'Binary Property',
+		displayName: 'Input Data Field Name',
 		name: 'binaryProperty',
 		type: 'string',
 		default: 'data',
 		required: true,
 		displayOptions: showFor(['upload', 'uploadLibrary']),
-		description: 'Name of the binary property containing the file to upload',
+		description:
+			'The name of the input field that contains the file to upload',
 	},
 	{
 		displayName: 'Filename',
@@ -173,7 +217,7 @@ export const mediaFields: INodeProperties[] = [
 		default: '',
 		displayOptions: showFor(['upload', 'uploadLibrary']),
 		description:
-			'Override the filename. Defaults to the binary input fileName.',
+			'The name to store the file under. Leave empty to use the name of the input file.',
 	},
 	{
 		displayName: 'Post Type',
@@ -250,7 +294,7 @@ export const mediaFields: INodeProperties[] = [
 		default: '',
 		displayOptions: showFor(['validate']),
 		description:
-			'Comma- or newline-separated media library UUIDs to check. Every file is measured from its own bytes.',
+			'Comma- or newline-separated IDs of the media library files to check. Every file is measured from its own content.',
 	},
 	{
 		displayName: 'Targets',
@@ -329,7 +373,7 @@ export const mediaFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: showFor(['bulkDelete']),
-		description: 'Comma- or newline-separated list of file UUIDs',
+		description: 'Comma- or newline-separated list of file IDs',
 	},
 	// Move file/folder targets
 	folderLocator(
