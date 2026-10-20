@@ -1,7 +1,12 @@
 import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
 import { postingTool } from '../PostingFunctions';
-import { getResourceId, resourceLocator, unsupportedOperation } from './common';
+import {
+	getResourceId,
+	listLimit,
+	resourceLocator,
+	unsupportedOperation,
+} from './common';
 
 const showFor = (operations: string[]) => ({
 	show: { resource: ['socialAccount'], operation: operations },
@@ -15,26 +20,46 @@ export const socialAccountOperations: INodeProperties[] = [
 		noDataExpression: true,
 		displayOptions: { show: { resource: ['socialAccount'] } },
 		options: [
-			{ name: 'Get', value: 'get', action: 'Get a connected account' },
-			{ name: 'Get Many', value: 'getMany', action: 'List connected accounts' },
+			// n8n lint requires sentence case in `action`, so brand names are
+			// written in full only in `description`.
+			{
+				name: 'Get',
+				value: 'get',
+				description: 'Retrieve a connected social account',
+				action: 'Get a connected account',
+			},
+			{
+				name: 'Get Many',
+				value: 'getMany',
+				description: 'Retrieve a list of the connected social accounts',
+				action: 'List connected accounts',
+			},
 			{
 				name: 'Get TikTok Creator Info',
 				value: 'getTikTokCreatorInfo',
+				description:
+					'Retrieve the privacy levels and options that a TikTok social account allows',
 				action: 'Get allowed tiktok creator options',
 			},
 			{
 				name: 'List Discord Channels',
 				value: 'listDiscordChannels',
+				description:
+					'Retrieve the Discord channels that a social account can post to',
 				action: 'List discord channels',
 			},
 			{
 				name: 'List Pinterest Boards',
 				value: 'listPinterestBoards',
+				description:
+					'Retrieve the Pinterest boards that a social account can post to',
 				action: 'List pinterest boards',
 			},
 			{
 				name: 'List Slack Channels',
 				value: 'listSlackChannels',
+				description:
+					'Retrieve the Slack channels that a social account can post to',
 				action: 'List slack channels',
 			},
 		],
@@ -108,28 +133,14 @@ export async function executeSocialAccount(
 			const id = getResourceId.call(this, 'accountId', itemIndex);
 			return await soMeApiRequest.call(this, 'GET', `/v1/accounts/${id}`);
 		}
-		case 'getMany': {
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
-			if (returnAll)
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/accounts',
-				)) as IDataObject[];
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const r = (await soMeApiRequest.call(
+		case 'getMany':
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/accounts',
-				undefined,
-				{ page: 1, limit },
-			)) as { data?: IDataObject[] };
-			return r?.data ?? [];
-		}
+				{},
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		default:
 			throw unsupportedOperation.call(this, 'socialAccount', operation);
 	}

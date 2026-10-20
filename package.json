@@ -1,7 +1,7 @@
 {
   "name": "@social-media-scheduler/n8n-nodes-social-media-scheduler",
   "version": "0.2.1",
-  "description": "n8n community node for Social media studio: create and schedule social media posts, threads, first comments and drafts, upload and validate media, read connected accounts, and trigger workflows on publishing events.",
+  "description": "n8n community node for Social Media Studio: create and schedule social media posts, threads, first comments and drafts, upload and validate media, read connected accounts, and trigger workflows on publishing events.",
   "keywords": [
     "n8n-community-node-package",
     "n8n",
@@ -32,7 +32,6 @@
     "type": "git",
     "url": "git+https://github.com/7t1-studio/n8n-nodes-social-media-scheduler.git"
   },
-  "main": "index.js",
   "scripts": {
     "build": "n8n-node build",
     "dev": "n8n-node dev",

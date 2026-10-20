@@ -2,7 +2,7 @@ import type { IDataObject } from 'n8n-workflow';
 
 /**
  * Mapping helpers for the typed post fields the public API v1 accepts:
- * `threadParts`, `firstComment` and `tiktok`.
+ * `threadParts`, `firstComment`, `tiktok` and `files`.
  *
  * Mirrors:
  *   apps/backend/src/api/api-access/v1/dto/v1-post.dto.ts
@@ -25,6 +25,9 @@ export const FIRST_COMMENT_PLATFORMS = [
 	'LINKEDIN_PAGE',
 	'THREADS',
 	'YOUTUBE',
+	'TIKTOK',
+	'BLUESKY',
+	'MASTODON',
 ] as const;
 
 export const TIKTOK_PRIVACY_LEVEL_OPTIONS = [
@@ -111,8 +114,41 @@ export function buildTikTokOptions(raw: unknown): IDataObject | undefined {
 }
 
 /**
+ * Turns the "Files" fixedCollection into the `files` array the API takes.
+ *
+ * n8n fills every sub-field the user did not touch with its default, so an
+ * image arrives with `id: ''` and `duration: 0`, which the API rejects. Only
+ * the values the user set are sent. Returns `undefined` when nothing is left.
+ */
+export function buildFiles(raw: unknown): IDataObject[] | undefined {
+	const entries = (raw as { file?: unknown } | undefined)?.file;
+	if (!Array.isArray(entries)) return undefined;
+
+	const files: IDataObject[] = [];
+	for (const entry of entries) {
+		if (!entry || typeof entry !== 'object') continue;
+		const file: IDataObject = {};
+		for (const [key, value] of Object.entries(entry as IDataObject)) {
+			if (typeof value === 'string') {
+				if (value.trim() !== '') file[key] = value.trim();
+			} else if (typeof value === 'number') {
+				if (value !== 0 && Number.isFinite(value)) file[key] = value;
+			} else if (value !== undefined && value !== null) {
+				file[key] = value;
+			}
+		}
+		if (Object.keys(file).length) files.push(file);
+	}
+
+	return files.length ? files : undefined;
+}
+
+/**
  * Adds the three typed fields to a request body. Typed fields win over any
  * value the free-form Metadata JSON carries for the same feature.
+ *
+ * Pass `platform` when it is known (create): the API answers 400 to TikTok
+ * options on any other platform, so they are sent only for TIKTOK.
  */
 export function applyPostOptions(
 	body: IDataObject,
@@ -120,6 +156,7 @@ export function applyPostOptions(
 		threadParts?: unknown;
 		firstComment?: unknown;
 		tiktok?: unknown;
+		platform?: unknown;
 	},
 ): IDataObject {
 	const threadParts = buildThreadParts(values.threadParts);
@@ -129,7 +166,11 @@ export function applyPostOptions(
 	if (firstComment !== undefined) body.firstComment = firstComment;
 
 	const tiktok = buildTikTokOptions(values.tiktok);
-	if (tiktok !== undefined) body.tiktok = tiktok;
+	if (
+		tiktok !== undefined &&
+		(values.platform === undefined || values.platform === 'TIKTOK')
+	)
+		body.tiktok = tiktok;
 
 	return body;
 }

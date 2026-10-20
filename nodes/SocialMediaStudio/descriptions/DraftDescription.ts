@@ -6,6 +6,7 @@ import { applyPostOptions } from '../postOptions';
 import { applyAttachmentOptions, postFields } from './PostDescription';
 import {
 	getResourceId,
+	listLimit,
 	parseJsonParameter,
 	resourceIdFrom,
 	resourceLocator,
@@ -41,42 +42,60 @@ export const draftOperations: INodeProperties[] = [
 			{
 				name: 'Convert to Post',
 				value: 'convert',
+				description:
+					'Turn a draft into a post that publishes now or at a set time',
 				action: 'Convert draft to post',
 			},
-			{ name: 'Create', value: 'create', action: 'Create a draft' },
-			{ name: 'Delete', value: 'delete', action: 'Delete a draft' },
-			{ name: 'Get', value: 'get', action: 'Get a draft' },
-			{ name: 'Get Many', value: 'getMany', action: 'Get many drafts' },
-			{ name: 'Update', value: 'update', action: 'Update a draft' },
+			{
+				name: 'Create',
+				value: 'create',
+				description: 'Create a new draft',
+				action: 'Create a draft',
+			},
+			{
+				name: 'Delete',
+				value: 'delete',
+				description: 'Delete a draft',
+				action: 'Delete a draft',
+			},
+			{
+				name: 'Get',
+				value: 'get',
+				description: 'Retrieve a draft',
+				action: 'Get a draft',
+			},
+			{
+				name: 'Get Many',
+				value: 'getMany',
+				description: 'Retrieve a list of drafts',
+				action: 'Get many drafts',
+			},
+			{
+				name: 'Update',
+				value: 'update',
+				description: 'Update a draft',
+				action: 'Update a draft',
+			},
 		],
 		default: 'create',
 	},
 ];
 
-export const draftFields: INodeProperties[] = [
-	...postFields
-		.filter((field) =>
-			[
-				'threadParts',
-				'firstComment',
-				'tiktok',
-				'libraryFileIds',
-				'metaData',
-				'clearMedia',
-				'clearThread',
-				'clearFirstComment',
-			].includes(field.name),
-		)
+/** Post fields that drafts share, shown for the given draft operations. */
+const sharedPostFields = (
+	names: string[],
+	operations: (name: string) => string[],
+): INodeProperties[] =>
+	postFields
+		.filter((field) => names.includes(field.name))
 		.map((field) => ({
 			...field,
-			displayOptions: showFor(
-				field.name === 'tiktok' || field.name === 'libraryFileIds'
-					? ['create', 'update', 'convert']
-					: field.name.startsWith('clear')
-						? ['update']
-						: ['create', 'update'],
-			),
-		})),
+			displayOptions: showFor(operations(field.name)),
+		}));
+
+// The order of this list is the order in the editor: the fields that every
+// operation needs come first, the optional ones after.
+export const draftFields: INodeProperties[] = [
 	resourceLocator({
 		displayName: 'Draft',
 		name: 'draftId',
@@ -162,9 +181,25 @@ export const draftFields: INodeProperties[] = [
 		type: 'dateTime',
 		default: '',
 		displayOptions: showFor(['convert']),
-		description:
-			'Optional ISO datetime — convert as scheduled post. Leave empty to publish immediately.',
+		description: 'When to publish the post. Leave empty to publish now.',
 	},
+	...sharedPostFields(
+		['libraryFileIds', 'threadParts', 'firstComment', 'tiktok', 'metaData'],
+		(name) =>
+			name === 'tiktok' || name === 'libraryFileIds'
+				? ['create', 'update', 'convert']
+				: ['create', 'update'],
+	),
+	// Drafts keep their media editable through MCP update_draft, unlike posts.
+	{
+		displayName: 'Clear Media',
+		name: 'clearMedia',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update']),
+		description: 'Whether to remove all existing media attachments',
+	},
+	...sharedPostFields(['clearThread', 'clearFirstComment'], () => ['update']),
 	{
 		displayName: 'Return All',
 		name: 'returnAll',
@@ -200,35 +235,21 @@ export async function executeDraft(
 			};
 			const accountId = getResourceId.call(this, 'accountId', itemIndex);
 			if (accountId) body.accountId = accountId;
-			applyDraftOptions.call(this, body, itemIndex);
+			applyDraftOptions.call(this, body, itemIndex, body.socialMedia);
 			return await postingTool.call(this, 'create_draft', body);
 		}
 		case 'get': {
 			const id = getResourceId.call(this, 'draftId', itemIndex);
 			return await soMeApiRequest.call(this, 'GET', `/v1/drafts/${id}`);
 		}
-		case 'getMany': {
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
-			if (returnAll)
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/drafts',
-				)) as IDataObject[];
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const r = (await soMeApiRequest.call(
+		case 'getMany':
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/drafts',
-				undefined,
-				{ page: 1, limit },
-			)) as { data?: IDataObject[] };
-			return r?.data ?? [];
-		}
+				{},
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		case 'update': {
 			const id = getResourceId.call(this, 'draftId', itemIndex);
 			const updateFields = this.getNodeParameter(
@@ -273,6 +294,7 @@ function applyDraftOptions(
 	this: IExecuteFunctions,
 	body: IDataObject,
 	itemIndex: number,
+	platform?: unknown,
 ): void {
 	const metadata = parseJsonParameter.call(
 		this,
@@ -285,6 +307,7 @@ function applyDraftOptions(
 		threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
 		firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
 		tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
+		platform,
 	});
 	applyAttachmentOptions.call(this, body, itemIndex);
 }

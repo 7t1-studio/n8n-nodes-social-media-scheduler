@@ -64,13 +64,21 @@ export async function soMeApiRequest(
 	}
 }
 
+/** The API answers 400 to a page size above 100. */
+const MAX_PAGE_SIZE = 100;
+
+/**
+ * Reads every page, or only as many pages as `limit` needs. A list endpoint
+ * that answers with a plain array is read as one page.
+ */
 export async function soMeApiRequestAllItems<T = IDataObject>(
 	this: ApiContext,
 	method: IHttpRequestMethods,
 	resource: string,
 	qs: IDataObject = {},
-	pageSize = 100,
+	limit?: number,
 ): Promise<T[]> {
+	const pageSize = Math.min(limit ?? MAX_PAGE_SIZE, MAX_PAGE_SIZE);
 	const items: T[] = [];
 	let page = 1;
 	let totalPages = 1;
@@ -80,16 +88,20 @@ export async function soMeApiRequestAllItems<T = IDataObject>(
 			...qs,
 			page,
 			limit: pageSize,
-		})) as unknown as PaginatedResponse<T>;
+		})) as unknown as PaginatedResponse<T> | T[];
 
+		if (Array.isArray(response)) {
+			items.push(...response);
+			break;
+		}
 		const batch = Array.isArray(response?.data) ? response.data : [];
 		items.push(...batch);
 
 		totalPages = response?.meta?.totalPages ?? page;
 		page += 1;
-	} while (page <= totalPages);
+	} while (page <= totalPages && (limit === undefined || items.length < limit));
 
-	return items;
+	return limit === undefined ? items : items.slice(0, limit);
 }
 
 /**
@@ -102,7 +114,15 @@ function mapError(this: ApiContext, error: unknown): NodeApiError {
 	const { status, body } = errorDetails(error);
 	// Without an HTTP status (no connection, timeout) n8n's own message is the clearest.
 	if (!status && error instanceof NodeApiError) return error;
+	return apiError.call(this, status, body);
+}
 
+/** The error a REST 401 gives, for other paths that find a rejected API key. */
+export function invalidApiKeyError(this: ApiContext, body?: unknown): NodeApiError {
+	return apiError.call(this, 401, body);
+}
+
+function apiError(this: ApiContext, status: number | undefined, body: unknown): NodeApiError {
 	const { message, description } = friendlyMessage(status, body);
 	const response = (
 		body && typeof body === 'object' ? body : { message: apiText(body) ?? message }

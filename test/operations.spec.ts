@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SocialMediaStudio } from '../nodes/SocialMediaStudio/SocialMediaStudio.node';
 import { postingTool } from '../nodes/SocialMediaStudio/PostingFunctions';
+import { NodeHelpers } from 'n8n-workflow';
 import type { IHttpRequestOptions } from 'n8n-workflow';
 
 const node = new SocialMediaStudio();
@@ -171,6 +172,59 @@ describe('every exposed posting operation', () => {
 	}
 });
 
+// The answer production /mcp/posting gives with a missing or rejected API key:
+// HTTP 200 and a tool error with the MCP authorization challenge.
+const MCP_BAD_KEY_SSE = `event: message\ndata: ${JSON.stringify({
+	result: {
+		_meta: {
+			'mcp/www_authenticate': [
+				'Bearer resource_metadata="https://api.so-me.studio/.well-known/oauth-protected-resource/mcp/posting", error="invalid_token", error_description="Connect Social media studio to continue"',
+			],
+		},
+		content: [
+			{
+				type: 'text',
+				text: 'Connect Social media studio to continue with your request.',
+			},
+		],
+		isError: true,
+	},
+	jsonrpc: '2.0',
+	id: 1,
+})}\n\n`;
+
+describe('MCP operations with a rejected API key', () => {
+	for (const [resource, operation] of operationCases
+		.filter(([, , method]) => method === 'MCP')
+		.map(([r, o]) => [r, o])) {
+		it(`${resource}.${operation} throws the same error as a REST 401`, async () => {
+			const { ctx } = context({ ...input, resource, operation }, MCP_BAD_KEY_SSE);
+			await expect(node.execute.call(ctx as never)).rejects.toMatchObject({
+				message: 'The API key is not valid [Item 0]',
+				description:
+					'Create a new API key in Social Media Studio at Settings → API Keys, then update the Social Media Studio API credential.',
+				httpCode: '401',
+			});
+			expect(ctx.helpers.httpRequest).not.toHaveBeenCalled();
+		});
+	}
+	it('keeps the tool text for other tool errors', async () => {
+		const { ctx } = context(
+			{},
+			{
+				id: 1,
+				result: {
+					isError: true,
+					content: [{ type: 'text', text: 'Post is already published' }],
+				},
+			},
+		);
+		await expect(
+			postingTool.call(ctx as never, 'schedule_post', {}),
+		).rejects.toThrow('Post is already published');
+	});
+});
+
 describe('single delete operations', () => {
 	for (const [resource, operation] of [
 		['post', 'delete'],
@@ -210,6 +264,7 @@ describe('posting options and HTTP failure handling', () => {
 					...input,
 					resource,
 					operation,
+					socialMedia: 'TIKTOK',
 					libraryFileIds: 'a, b\nc',
 					threadParts: {
 						part: [{ text: 'part one' }, { text: 'part two', fileIds: 'x,y' }],
@@ -223,7 +278,6 @@ describe('posting options and HTTP failure handling', () => {
 						? JSON.parse(calls[0].body).params.arguments
 						: calls[0].body;
 				expect(body).toMatchObject({
-					fileIds: ['a', 'b', 'c'],
 					threadParts: [
 						{ text: 'part one' },
 						{ text: 'part two', fileIds: ['x', 'y'] },
@@ -231,6 +285,10 @@ describe('posting options and HTTP failure handling', () => {
 					firstComment: '#tag',
 					tiktok: { allowDuet: false, privacyLevel: 'SELF_ONLY' },
 				});
+				// PATCH /v1/posts/:id drops fileIds, so Post Update sends none.
+				if (resource === 'post' && operation === 'update')
+					expect(body).not.toHaveProperty('fileIds');
+				else expect(body.fileIds).toEqual(['a', 'b', 'c']);
 			});
 			it(`${resource}.${operation} rejects malformed metadata before sending`, async () => {
 				const { ctx, request } = context({
@@ -259,11 +317,185 @@ describe('posting options and HTTP failure handling', () => {
 					? JSON.parse(calls[0].body).params.arguments
 					: calls[0].body;
 			expect(body).toMatchObject({
-				fileIds: [],
 				threadParts: [],
 				firstComment: '',
 			});
+			if (resource === 'draft') expect(body.fileIds).toEqual([]);
+			else expect(body).not.toHaveProperty('fileIds');
 		});
+	it('does not offer media fields on Post Update, but keeps them on Draft Update', () => {
+		const shownOnPostUpdate = node.description.properties.filter(
+			(p) =>
+				p.displayOptions?.show?.resource?.includes('post') &&
+				p.displayOptions?.show?.operation?.includes('update'),
+		);
+		const names = shownOnPostUpdate.map((p) => p.name);
+		expect(names).not.toContain('libraryFileIds');
+		expect(names).not.toContain('clearMedia');
+		const draftUpdate = node.description.properties.filter(
+			(p) =>
+				p.displayOptions?.show?.resource?.includes('draft') &&
+				p.displayOptions?.show?.operation?.includes('update'),
+		);
+		expect(draftUpdate.map((p) => p.name)).toEqual(
+			expect.arrayContaining(['libraryFileIds', 'clearMedia']),
+		);
+	});
+	for (const resource of ['post', 'draft'])
+		it(`${resource}.create sends TikTok options only when Platform is TikTok`, async () => {
+			for (const [socialMedia, sent] of [
+				['BLUESKY', false],
+				['TIKTOK', true],
+			] as const) {
+				const { ctx, calls } = context({
+					...input,
+					resource,
+					operation: 'create',
+					socialMedia,
+					tiktok: { privacyLevel: 'SELF_ONLY' },
+				});
+				await node.execute.call(ctx as never);
+				const body =
+					typeof calls[0].body === 'string'
+						? JSON.parse(calls[0].body).params.arguments
+						: calls[0].body;
+				if (sent) expect(body.tiktok).toEqual({ privacyLevel: 'SELF_ONLY' });
+				else expect(body).not.toHaveProperty('tiktok');
+			}
+		});
+	it('post.create sends only the file values the user set (n8n fills in defaults)', async () => {
+		// Resolve the parameters the way n8n does when it loads a workflow, so the
+		// Files entry carries the defaults of every field the user left alone.
+		const stored = {
+			resource: 'post',
+			operation: 'create',
+			text: 'hello',
+			socialMedia: 'INSTAGRAM',
+			postType: 'IMAGE',
+			files: {
+				file: [
+					{
+						filename: 'a.jpg',
+						mimetype: 'image/jpeg',
+						size: 1234,
+						s3Prefix: 'posts/uploads/IMAGE/x-a.jpg',
+						fileSrc: 'https://cdn.example.test/x-a.jpg',
+					},
+				],
+			},
+		};
+		const resolved = NodeHelpers.getNodeParameters(
+			node.description.properties,
+			stored,
+			true,
+			false,
+			{ typeVersion: 1 },
+			node.description,
+		) as Record<string, unknown>;
+		expect(resolved.files).toEqual({
+			file: [expect.objectContaining({ id: '', duration: 0 })],
+		});
+		const { ctx, calls } = context(resolved);
+		await node.execute.call(ctx as never);
+		expect((calls[0].body as { files: unknown }).files).toEqual([
+			{
+				filename: 'a.jpg',
+				mimetype: 'image/jpeg',
+				size: 1234,
+				s3Prefix: 'posts/uploads/IMAGE/x-a.jpg',
+				fileSrc: 'https://cdn.example.test/x-a.jpg',
+			},
+		]);
+	});
+	it('post.create keeps a set file ID and video duration', async () => {
+		const { ctx, calls } = context({
+			...input,
+			resource: 'post',
+			operation: 'create',
+			files: {
+				file: [
+					{
+						id: '3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+						duration: 12.5,
+						filename: 'v.mp4',
+						mimetype: 'video/mp4',
+						size: 99,
+						s3Prefix: '',
+						fileSrc: '',
+					},
+				],
+			},
+		});
+		await node.execute.call(ctx as never);
+		expect((calls[0].body as { files: unknown }).files).toEqual([
+			{
+				id: '3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+				duration: 12.5,
+				filename: 'v.mp4',
+				mimetype: 'video/mp4',
+				size: 99,
+			},
+		]);
+	});
+	for (const [operation, folderParam, folder, expected] of [
+		['createFolder', 'parentFolderId', 'folder-9', { name: 'QA folder', parentId: 'folder-9' }],
+		['createFolder', 'parentFolderId', '', { name: 'QA folder' }],
+		['moveFolder', 'targetFolderId', 'folder-9', { parentId: 'folder-9' }],
+		['moveFolder', 'targetFolderId', '', { parentId: null }],
+	] as const)
+		it(`media.${operation} sends the parent folder as parentId (${folder || 'root'})`, async () => {
+			const { ctx, calls } = context({
+				...input,
+				resource: 'media',
+				operation,
+				[folderParam]: { __rl: true, mode: 'list', value: folder },
+			});
+			await node.execute.call(ctx as never);
+			expect(calls[0].body).toEqual(expected);
+		});
+	for (const [resource, operation, path] of [
+		['post', 'getMany', '/v1/posts'],
+		['draft', 'getMany', '/v1/drafts'],
+		['socialAccount', 'getMany', '/v1/accounts'],
+		['media', 'list', '/v1/media'],
+		['media', 'search', '/v1/media/files/search'],
+		['media', 'listFolders', '/v1/media/folders'],
+	] as const) {
+		it(`${resource}.${operation} reads a limit above 100 page by page`, async () => {
+			const { ctx, request } = context({
+				...input,
+				resource,
+				operation,
+				returnAll: false,
+				limit: 150,
+				output: 'raw',
+			});
+			const page = (n: number) =>
+				Array.from({ length: 100 }, (_, i) => ({ id: `${n}-${i}` }));
+			request
+				.mockResolvedValueOnce({ data: page(1), meta: { totalPages: 3 } })
+				.mockResolvedValueOnce({ data: page(2), meta: { totalPages: 3 } });
+			const output = await node.execute.call(ctx as never);
+			expect(output[0]).toHaveLength(150);
+			expect(request).toHaveBeenCalledTimes(2);
+			for (const [index, [, options]] of request.mock.calls.entries()) {
+				expect(options.url).toBe('http://localhost:58000' + path);
+				expect(options.qs).toMatchObject({ page: index + 1, limit: 100 });
+			}
+		});
+		it(`${resource}.${operation} asks for exactly the limit up to 100`, async () => {
+			const { ctx, request } = context({
+				...input,
+				resource,
+				operation,
+				returnAll: false,
+				limit: 30,
+			});
+			await node.execute.call(ctx as never);
+			expect(request).toHaveBeenCalledTimes(1);
+			expect(request.mock.calls[0][1].qs).toMatchObject({ page: 1, limit: 30 });
+		});
+	}
 	for (const [status, message] of [
 		[400, 'did not accept the request: details'],
 		[402, 'The plan limit is reached: details'],

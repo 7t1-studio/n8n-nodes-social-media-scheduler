@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	applyPostOptions,
+	buildFiles,
 	buildFirstComment,
 	buildThreadParts,
 	buildTikTokOptions,
+	FIRST_COMMENT_PLATFORMS,
 } from '../nodes/SocialMediaStudio/postOptions';
 
 const requestMock = vi.fn();
@@ -20,7 +22,7 @@ vi.mock('../nodes/SocialMediaStudio/GenericFunctions', () => ({
 	soMeApiRequestAllItems: (...args: unknown[]) => requestMock(...args),
 }));
 
-import { executePost } from '../nodes/SocialMediaStudio/descriptions/PostDescription';
+import { executePost, postFields } from '../nodes/SocialMediaStudio/descriptions/PostDescription';
 
 /** Minimal IExecuteFunctions stand-in: reads parameters from a plain map. */
 function context(params: Record<string, unknown>) {
@@ -97,6 +99,37 @@ describe('buildTikTokOptions', () => {
 	});
 });
 
+describe('buildFiles', () => {
+	it('drops empty strings and zero numbers, and entries with nothing left', () => {
+		expect(
+			buildFiles({
+				file: [
+					{ id: '', duration: 0, filename: ' a.jpg ', mimetype: 'image/jpeg', size: 10 },
+					{ id: '', duration: 0, filename: '', mimetype: '', size: 0 },
+				],
+			}),
+		).toEqual([{ filename: 'a.jpg', mimetype: 'image/jpeg', size: 10 }]);
+	});
+
+	it('returns undefined when no file was added', () => {
+		expect(buildFiles({})).toBeUndefined();
+		expect(buildFiles(undefined)).toBeUndefined();
+		expect(buildFiles({ file: [{ id: '', size: 0 }] })).toBeUndefined();
+	});
+});
+
+describe('first comment platforms', () => {
+	it('include TikTok, Bluesky and Mastodon, by display name in the help text', () => {
+		expect(FIRST_COMMENT_PLATFORMS).toEqual(
+			expect.arrayContaining(['TIKTOK', 'BLUESKY', 'MASTODON']),
+		);
+		const field = postFields.find((p) => p.name === 'firstComment');
+		for (const name of ['TikTok', 'Bluesky', 'Mastodon', 'LinkedIn (Page)'])
+			expect(field?.description).toContain(name);
+		expect(field?.description).not.toMatch(/\b(TIKTOK|LINKEDIN_PAGE|TWITTER)\b/);
+	});
+});
+
 describe('applyPostOptions', () => {
 	it('adds only the fields the user filled in', () => {
 		const body = applyPostOptions({ text: 'head' }, { firstComment: '#tag' });
@@ -121,7 +154,7 @@ describe('post request body mapping', () => {
 		postingMock.mockResolvedValue({ id: 'post-1' });
 	});
 
-	it('sends threadParts, firstComment and tiktok on create', async () => {
+	it('sends threadParts and firstComment on create, and no tiktok for another platform', async () => {
 		await executePost.call(
 			context({
 				text: 'Three things I learned this week:',
@@ -144,6 +177,25 @@ describe('post request body mapping', () => {
 			metaData: { hashtags: ['a'] },
 			threadParts: [{ text: 'part one' }, { text: 'part two', fileIds: ['file-1'] }],
 			firstComment: '#thread',
+		});
+	});
+
+	it('sends tiktok on a TikTok create', async () => {
+		await executePost.call(
+			context({
+				text: 'New video',
+				socialMedia: 'TIKTOK',
+				postType: 'VIDEO',
+				tiktok: { privacyLevel: 'SELF_ONLY', allowDuet: false },
+			}),
+			'create',
+			0,
+		);
+
+		expect(lastBody()).toEqual({
+			text: 'New video',
+			socialMedia: 'TIKTOK',
+			postType: 'VIDEO',
 			tiktok: { privacyLevel: 'SELF_ONLY', allowDuet: false },
 		});
 	});

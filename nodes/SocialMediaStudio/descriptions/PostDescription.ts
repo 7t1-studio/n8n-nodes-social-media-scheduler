@@ -2,18 +2,21 @@ import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
 import {
 	getResourceId,
+	listLimit,
 	parseJsonParameter,
 	resourceLocator,
 	unsupportedOperation,
 } from './common';
 import { parseFileIds, postingTool } from '../PostingFunctions';
 import {
+	platformNames,
 	POST_STATUS_OPTIONS,
 	POST_TYPE_OPTIONS,
 	SOCIAL_MEDIA_OPTIONS,
 } from '../types';
 import {
 	applyPostOptions,
+	buildFiles,
 	FIRST_COMMENT_PLATFORMS,
 	THREAD_PLATFORMS,
 	TIKTOK_PRIVACY_LEVEL_OPTIONS,
@@ -64,7 +67,7 @@ export const postOperations: INodeProperties[] = [
 			{
 				name: 'Get Many',
 				value: 'getMany',
-				description: 'List posts (paginated)',
+				description: 'Retrieve a list of posts',
 				action: 'Get many posts',
 			},
 			{
@@ -102,40 +105,9 @@ export const postOperations: INodeProperties[] = [
 	},
 ];
 
+// The order of this list is the order in the editor: the fields that every
+// operation needs come first, the optional ones after.
 export const postFields: INodeProperties[] = [
-	{
-		displayName: 'Media Library File IDs',
-		name: 'libraryFileIds',
-		type: 'string',
-		default: '',
-		displayOptions: showFor(['create', 'update']),
-		description:
-			'Comma-separated uploaded library UUIDs. Use Media → Upload to Library, then verify the upload.',
-	},
-	{
-		displayName: 'Clear Media',
-		name: 'clearMedia',
-		type: 'boolean',
-		default: false,
-		displayOptions: showFor(['update']),
-		description: 'Whether to remove all existing media attachments',
-	},
-	{
-		displayName: 'Clear Thread',
-		name: 'clearThread',
-		type: 'boolean',
-		default: false,
-		displayOptions: showFor(['update', 'schedule']),
-		description: 'Whether to remove the existing thread parts',
-	},
-	{
-		displayName: 'Clear First Comment',
-		name: 'clearFirstComment',
-		type: 'boolean',
-		default: false,
-		displayOptions: showFor(['update', 'schedule']),
-		description: 'Whether to remove the existing first comment',
-	},
 	// ── Common: post ID ─────────────────────────────────────────
 	resourceLocator({
 		displayName: 'Post',
@@ -164,7 +136,7 @@ export const postFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: showFor(['create']),
-		description: 'Post body / caption text',
+		description: 'The text or caption of the post',
 	},
 	{
 		displayName: 'Platform',
@@ -200,8 +172,54 @@ export const postFields: INodeProperties[] = [
 		type: 'dateTime',
 		default: '',
 		displayOptions: showFor(['create']),
+		description: 'When to publish the post. Leave empty to publish now.',
+	},
+
+	// ── Update ──────────────────────────────────────────────────
+	{
+		displayName: 'Update Fields',
+		name: 'updateFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: showFor(['update']),
+		options: [
+			{
+				displayName: 'Text',
+				name: 'text',
+				type: 'string',
+				typeOptions: { rows: 4 },
+				default: '',
+			},
+			{
+				displayName: 'Schedule For',
+				name: 'scheduledAt',
+				type: 'dateTime',
+				default: '',
+			},
+		],
+	},
+
+	// ── Schedule ────────────────────────────────────────────────
+	{
+		displayName: 'Schedule For',
+		name: 'scheduleFor',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: showFor(['schedule']),
+		description: 'When to publish the post. Must be in the future.',
+	},
+
+	// ── Media (create only: the API cannot change the media of a post) ──
+	{
+		displayName: 'Media Library File IDs',
+		name: 'libraryFileIds',
+		type: 'string',
+		default: '',
+		displayOptions: showFor(['create']),
 		description:
-			'ISO 8601 datetime to publish at. Leave empty for immediate publishing.',
+			'Comma-separated IDs of media library files. Use Media → Upload to Library, which also checks the upload.',
 	},
 	{
 		displayName: 'Files',
@@ -211,7 +229,7 @@ export const postFields: INodeProperties[] = [
 		default: {},
 		displayOptions: showFor(['create']),
 		description:
-			'Media files to attach. First call the Media → Presign Upload operation to get s3Prefix + fileSrc.',
+			'Files uploaded with Media → Upload or Media → Get Upload URL. Copy fileId, fileSrc and s3Prefix from that output (not uploadUrl). Leave empty when you use Media Library File IDs.',
 		options: [
 			{
 				name: 'file',
@@ -229,12 +247,14 @@ export const postFields: INodeProperties[] = [
 						name: 'id',
 						type: 'string',
 						default: '',
+						description: 'The fileId value that the upload returned',
 					},
 					{
-						displayName: 'File Src URL',
+						displayName: 'File URL',
 						name: 'fileSrc',
 						type: 'string',
 						default: '',
+						description: 'The fileSrc value that the upload returned (not uploadUrl)',
 					},
 					{
 						displayName: 'Filename',
@@ -249,21 +269,24 @@ export const postFields: INodeProperties[] = [
 						default: '',
 					},
 					{
-						displayName: 'S3 Prefix',
-						name: 's3Prefix',
-						type: 'string',
-						default: '',
-					},
-					{
 						displayName: 'Size (Bytes)',
 						name: 'size',
 						type: 'number',
 						default: 0,
 					},
+					{
+						displayName: 'Storage Key',
+						name: 's3Prefix',
+						type: 'string',
+						default: '',
+						description: 'The s3Prefix value that the upload returned',
+					},
 				],
 			},
 		],
 	},
+
+	// ── Posting options ─────────────────────────────────────────
 	{
 		displayName: 'Thread Parts',
 		name: 'threadParts',
@@ -271,7 +294,7 @@ export const postFields: INodeProperties[] = [
 		typeOptions: { multipleValues: true, sortable: true },
 		default: {},
 		displayOptions: showFor(['create', 'update', 'schedule']),
-		description: `Posts that follow the head post, in order. The Text field above is the head post, so the first part here is the second post of the chain. Supported on ${THREAD_PLATFORMS.join(', ')}; any other platform returns an error. Limits per part: TWITTER 280 characters, THREADS 500, BLUESKY 300 graphemes, MASTODON 500; 24 parts at most.`,
+		description: `Posts that follow the head post, in order. The Text field above is the head post, so the first part here is the second post of the chain. Supported on ${platformNames(THREAD_PLATFORMS)}; any other platform returns an error. Limits per part: Twitter / X 280 characters, Threads 500, Bluesky 300, Mastodon 500; 24 parts at most.`,
 		options: [
 			{
 				name: 'part',
@@ -291,7 +314,7 @@ export const postFields: INodeProperties[] = [
 						type: 'string',
 						default: '',
 						description:
-							'Comma-separated media library UUIDs to attach to this part. The file must stay in the library until the post publishes.',
+							'Comma-separated IDs of media library files to attach to this part. The file must stay in the library until the post publishes.',
 					},
 				],
 			},
@@ -304,7 +327,7 @@ export const postFields: INodeProperties[] = [
 		typeOptions: { rows: 2 },
 		default: '',
 		displayOptions: showFor(['create', 'update', 'schedule']),
-		description: `One comment posted automatically under the post right after it publishes, for hashtags or a link. Supported on ${FIRST_COMMENT_PLATFORMS.join(', ')}; another platform publishes the post without the comment and returns a warning. Leave empty to keep any existing comment. With Thread Parts the comment goes under the last part of the chain.`,
+		description: `One comment posted automatically under the post right after it publishes, for hashtags or a link. Supported on ${platformNames(FIRST_COMMENT_PLATFORMS)}; another platform publishes the post without the comment and returns a warning. Leave empty to keep any existing comment. With Thread Parts the comment goes under the last part of the chain.`,
 	},
 	{
 		displayName: 'TikTok Options',
@@ -314,7 +337,7 @@ export const postFields: INodeProperties[] = [
 		default: {},
 		displayOptions: showFor(['create', 'update', 'schedule']),
 		description:
-			'TikTok only. TikTok rejects every post that carries no privacy level. Other platforms ignore these options.',
+			'TikTok only. TikTok rejects every post that carries no privacy level. On create the node sends these options only when Platform is TikTok. On update or schedule, Social Media Studio rejects them for a post on another platform.',
 		options: [
 			{
 				displayName: 'Allow Comments',
@@ -370,43 +393,23 @@ export const postFields: INodeProperties[] = [
 		default: '',
 		displayOptions: showFor(['create', 'update']),
 		description:
-			'Platform-specific metadata as JSON (hashtags, mentions, location, etc.). The typed fields above win over the same feature in this JSON.',
+			'Platform options as JSON, for example hashtags, mentions or a location. The fields above win over the same option in this JSON.',
 	},
-
-	// ── Update ──────────────────────────────────────────────────
 	{
-		displayName: 'Update Fields',
-		name: 'updateFields',
-		type: 'collection',
-		placeholder: 'Add Field',
-		default: {},
-		displayOptions: showFor(['update']),
-		options: [
-			{
-				displayName: 'Text',
-				name: 'text',
-				type: 'string',
-				typeOptions: { rows: 4 },
-				default: '',
-			},
-			{
-				displayName: 'Schedule For',
-				name: 'scheduledAt',
-				type: 'dateTime',
-				default: '',
-			},
-		],
+		displayName: 'Clear Thread',
+		name: 'clearThread',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update', 'schedule']),
+		description: 'Whether to remove the existing thread parts',
 	},
-
-	// ── Schedule ────────────────────────────────────────────────
 	{
-		displayName: 'Schedule For',
-		name: 'scheduleFor',
-		type: 'dateTime',
-		required: true,
-		default: '',
-		displayOptions: showFor(['schedule']),
-		description: 'ISO 8601 datetime — must be in the future',
+		displayName: 'Clear First Comment',
+		name: 'clearFirstComment',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update', 'schedule']),
+		description: 'Whether to remove the existing first comment',
 	},
 
 	// ── Get Many ────────────────────────────────────────────────
@@ -442,14 +445,14 @@ export const postFields: INodeProperties[] = [
 				name: 'status',
 				type: 'options',
 				default: '',
-				options: [{ name: '— Any —', value: '' }, ...POST_STATUS_OPTIONS],
+				options: [{ name: 'All', value: '' }, ...POST_STATUS_OPTIONS],
 			},
 			{
 				displayName: 'Platform',
 				name: 'socialMedia',
 				type: 'options',
 				default: '',
-				options: [{ name: '— Any —', value: '' }, ...SOCIAL_MEDIA_OPTIONS],
+				options: [{ name: 'All', value: '' }, ...SOCIAL_MEDIA_OPTIONS],
 			},
 		],
 	},
@@ -481,7 +484,7 @@ export const postFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: showFor(['bulkDelete']),
-		description: 'Comma- or newline-separated list of post UUIDs',
+		description: 'Comma- or newline-separated list of post IDs',
 	},
 ];
 
@@ -504,9 +507,7 @@ export async function executePost(
 				itemIndex,
 				'',
 			) as string;
-			const filesParam = this.getNodeParameter('files', itemIndex, {}) as {
-				file?: IDataObject[];
-			};
+			const files = buildFiles(this.getNodeParameter('files', itemIndex, {}));
 			const metaData = parseJsonParameter.call(
 				this,
 				'metaData',
@@ -517,13 +518,14 @@ export async function executePost(
 			const body: IDataObject = { text, socialMedia, postType };
 			if (accountId) body.accountId = accountId;
 			if (scheduledAt) body.scheduledAt = scheduledAt;
-			if (filesParam?.file?.length) body.files = filesParam.file;
+			if (files) body.files = files;
 			if (metaData) body.metaData = metaData;
 
 			applyPostOptions(body, {
 				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
 				firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
+				platform: socialMedia,
 			});
 
 			applyAttachmentOptions.call(this, body, itemIndex);
@@ -536,11 +538,6 @@ export async function executePost(
 		}
 
 		case 'getMany': {
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
 			const filters = this.getNodeParameter(
 				'filters',
 				itemIndex,
@@ -551,27 +548,13 @@ export async function executePost(
 			if (filters.status) qs.status = filters.status;
 			if (filters.socialMedia) qs.socialMedia = filters.socialMedia;
 
-			if (returnAll) {
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/posts',
-					qs,
-				)) as IDataObject[];
-			}
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const response = (await soMeApiRequest.call(
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/posts',
-				undefined,
-				{
-					...qs,
-					page: 1,
-					limit,
-				},
-			)) as { data?: IDataObject[] };
-			return response?.data ?? [];
+				qs,
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		}
 
 		case 'getCalendar': {
@@ -612,7 +595,7 @@ export async function executePost(
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
 			});
 
-			applyAttachmentOptions.call(this, body, itemIndex);
+			applyAttachmentOptions.call(this, body, itemIndex, false);
 			return await soMeApiRequest.call(
 				this,
 				'PATCH',
@@ -650,7 +633,7 @@ export async function executePost(
 				firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
 			});
-			applyAttachmentOptions.call(this, body, itemIndex);
+			applyAttachmentOptions.call(this, body, itemIndex, false);
 			return await postingTool.call(this, 'schedule_post', {
 				id: postId,
 				...body,
@@ -689,16 +672,25 @@ export async function executePost(
 	}
 }
 
+/**
+ * Adds the media library files and the clear switches. Post Update and
+ * Schedule pass `includeMedia: false`: PATCH /v1/posts/:id drops `fileIds`,
+ * so the node does not offer media there.
+ */
 export function applyAttachmentOptions(
 	this: IExecuteFunctions,
 	body: IDataObject,
 	itemIndex: number,
+	includeMedia = true,
 ): void {
-	const ids = parseFileIds(
-		this.getNodeParameter('libraryFileIds', itemIndex, '') as string,
-	);
-	if (ids.length) body.fileIds = ids;
-	if (this.getNodeParameter('clearMedia', itemIndex, false)) body.fileIds = [];
+	if (includeMedia) {
+		const ids = parseFileIds(
+			this.getNodeParameter('libraryFileIds', itemIndex, '') as string,
+		);
+		if (ids.length) body.fileIds = ids;
+		if (this.getNodeParameter('clearMedia', itemIndex, false))
+			body.fileIds = [];
+	}
 	if (this.getNodeParameter('clearThread', itemIndex, false))
 		body.threadParts = [];
 	if (this.getNodeParameter('clearFirstComment', itemIndex, false))
