@@ -82,7 +82,7 @@ export class SocialMediaStudioTrigger implements INodeType {
 				const webhookUrl = this.getNodeWebhookUrl('default');
 				const staticData = this.getWorkflowStaticData('node') as IDataObject;
 
-				// Every page: the subscription of this workflow can be past the first 100.
+				// Read the whole list; the request helper follows pages if the API sends them.
 				const subscriptions = (await soMeApiRequestAllItems.call(
 					this,
 					'GET',

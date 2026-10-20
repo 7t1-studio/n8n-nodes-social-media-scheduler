@@ -144,7 +144,7 @@ describe('actual trigger implementation', () => {
 			await node.webhookMethods.default.checkExists.call(ctx as never),
 		).toBe(false);
 	});
-	it('finds its subscription past the first page of 100', async () => {
+	it('finds its subscription on a later page if the API pages the list', async () => {
 		const { ctx, request, data } = context();
 		const others = Array.from({ length: 100 }, (_, i) => ({
 			id: `other-${i}`,

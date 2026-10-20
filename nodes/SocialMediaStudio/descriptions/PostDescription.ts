@@ -229,7 +229,7 @@ export const postFields: INodeProperties[] = [
 		default: {},
 		displayOptions: showFor(['create']),
 		description:
-			'Files uploaded with Media → Upload or Media → Get Upload URL. Copy the file URL and storage key from that output. Leave empty when you use Media Library File IDs.',
+			'Files uploaded with Media → Upload or Media → Get Upload URL. Copy fileId, fileSrc and s3Prefix from that output (not uploadUrl). Leave empty when you use Media Library File IDs.',
 		options: [
 			{
 				name: 'file',
@@ -247,14 +247,14 @@ export const postFields: INodeProperties[] = [
 						name: 'id',
 						type: 'string',
 						default: '',
-						description: 'The file ID that the upload returned',
+						description: 'The fileId value that the upload returned',
 					},
 					{
 						displayName: 'File URL',
 						name: 'fileSrc',
 						type: 'string',
 						default: '',
-						description: 'The file URL that the upload returned',
+						description: 'The fileSrc value that the upload returned (not uploadUrl)',
 					},
 					{
 						displayName: 'Filename',
@@ -279,7 +279,7 @@ export const postFields: INodeProperties[] = [
 						name: 's3Prefix',
 						type: 'string',
 						default: '',
-						description: 'The storage key that the upload returned',
+						description: 'The s3Prefix value that the upload returned',
 					},
 				],
 			},

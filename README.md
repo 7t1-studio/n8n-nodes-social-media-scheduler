@@ -147,7 +147,7 @@ The tests cover the operation list, request mapping, thread and media options, p
   - **TikTok Options** are sent on **Create** only when **Platform** is TikTok. The help text now says that other platforms reject them.
   - **First Comment** lists TikTok, Bluesky, and Mastodon as supported platforms.
   - The operations that use the Social Media Studio MCP server, such as **Post → Schedule** and **Draft → Create**, show **The API key is not valid** for a missing or wrong key, the same as the other operations.
-  - The trigger finds its webhook subscription in workspaces with more than 100 subscriptions, and no longer adds a second subscription for the same workflow.
+  - The trigger no longer adds a second subscription for the same workflow.
   - Labels use plain words: **Input Data Field Name**, **Get Upload URL**, **Get Library Upload URL**, **File URL**, and **Storage Key**. Every operation has a description. Required fields come first, and dropdowns are sorted by name.
   - Removes the unused `main` field from `package.json`.
   - Parameter names and operation values do not change, so 0.2.0 workflows and IDs keep working.

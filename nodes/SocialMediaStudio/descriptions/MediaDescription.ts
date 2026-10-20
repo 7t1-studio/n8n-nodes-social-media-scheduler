@@ -91,7 +91,7 @@ export const mediaOperations: INodeProperties[] = [
 			{
 				name: 'Get Many Folders',
 				value: 'listFolders',
-				description: 'Retrieve a list of the media library folders',
+				description: 'Retrieve a list of the folders at the top level of the media library',
 				action: 'List media folders',
 			},
 			{
