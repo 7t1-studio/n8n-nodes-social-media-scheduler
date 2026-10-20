@@ -136,6 +136,7 @@ The tests cover the operation list, request mapping, thread and media options, p
 
 ## Version history
 
+- **0.2.2** — Date fields (Schedule For, the calendar range) are read in the time zone of the workflow and sent to the API in UTC. Before, the API read them in the server's time zone, so a post could publish hours early or late.
 - **0.2.1**
   - Passes the n8n community package scan: title-case credential name, supported node categories, and correct codex node IDs.
   - Removes WhatsApp and Telegram from the posting platforms, because Social Media Studio cannot publish to them. Removes unused code for deferred features.
