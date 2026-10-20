@@ -32,7 +32,6 @@
     "type": "git",
     "url": "git+https://github.com/7t1-studio/n8n-nodes-social-media-scheduler.git"
   },
-  "main": "index.js",
   "scripts": {
     "build": "n8n-node build",
     "dev": "n8n-node dev",
