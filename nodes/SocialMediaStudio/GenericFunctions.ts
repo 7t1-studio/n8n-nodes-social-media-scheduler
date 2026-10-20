@@ -114,7 +114,15 @@ function mapError(this: ApiContext, error: unknown): NodeApiError {
 	const { status, body } = errorDetails(error);
 	// Without an HTTP status (no connection, timeout) n8n's own message is the clearest.
 	if (!status && error instanceof NodeApiError) return error;
+	return apiError.call(this, status, body);
+}
 
+/** The error a REST 401 gives, for other paths that find a rejected API key. */
+export function invalidApiKeyError(this: ApiContext, body?: unknown): NodeApiError {
+	return apiError.call(this, 401, body);
+}
+
+function apiError(this: ApiContext, status: number | undefined, body: unknown): NodeApiError {
 	const { message, description } = friendlyMessage(status, body);
 	const response = (
 		body && typeof body === 'object' ? body : { message: apiText(body) ?? message }

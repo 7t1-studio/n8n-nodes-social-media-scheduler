@@ -172,6 +172,59 @@ describe('every exposed posting operation', () => {
 	}
 });
 
+// The answer production /mcp/posting gives with a missing or rejected API key:
+// HTTP 200 and a tool error with the MCP authorization challenge.
+const MCP_BAD_KEY_SSE = `event: message\ndata: ${JSON.stringify({
+	result: {
+		_meta: {
+			'mcp/www_authenticate': [
+				'Bearer resource_metadata="https://api.so-me.studio/.well-known/oauth-protected-resource/mcp/posting", error="invalid_token", error_description="Connect Social media studio to continue"',
+			],
+		},
+		content: [
+			{
+				type: 'text',
+				text: 'Connect Social media studio to continue with your request.',
+			},
+		],
+		isError: true,
+	},
+	jsonrpc: '2.0',
+	id: 1,
+})}\n\n`;
+
+describe('MCP operations with a rejected API key', () => {
+	for (const [resource, operation] of operationCases
+		.filter(([, , method]) => method === 'MCP')
+		.map(([r, o]) => [r, o])) {
+		it(`${resource}.${operation} throws the same error as a REST 401`, async () => {
+			const { ctx } = context({ ...input, resource, operation }, MCP_BAD_KEY_SSE);
+			await expect(node.execute.call(ctx as never)).rejects.toMatchObject({
+				message: 'The API key is not valid [Item 0]',
+				description:
+					'Create a new API key in Social Media Studio at Settings → API Keys, then update the Social Media Studio API credential.',
+				httpCode: '401',
+			});
+			expect(ctx.helpers.httpRequest).not.toHaveBeenCalled();
+		});
+	}
+	it('keeps the tool text for other tool errors', async () => {
+		const { ctx } = context(
+			{},
+			{
+				id: 1,
+				result: {
+					isError: true,
+					content: [{ type: 'text', text: 'Post is already published' }],
+				},
+			},
+		);
+		await expect(
+			postingTool.call(ctx as never, 'schedule_post', {}),
+		).rejects.toThrow('Post is already published');
+	});
+});
+
 describe('single delete operations', () => {
 	for (const [resource, operation] of [
 		['post', 'delete'],

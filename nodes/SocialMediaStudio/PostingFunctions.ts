@@ -4,7 +4,7 @@ import {
 	ILoadOptionsFunctions,
 	NodeOperationError,
 } from 'n8n-workflow';
-import { soMeApiRequest } from './GenericFunctions';
+import { invalidApiKeyError, soMeApiRequest } from './GenericFunctions';
 
 interface Envelope {
 	id: number;
@@ -13,7 +13,22 @@ interface Envelope {
 		isError?: boolean;
 		structuredContent?: IDataObject;
 		content?: Array<{ type: string; text?: string }>;
+		_meta?: IDataObject;
 	};
+}
+
+/**
+ * With a missing or rejected API key, /mcp/posting answers HTTP 200 with a
+ * tool error that carries the MCP authorization challenge
+ * (`_meta['mcp/www_authenticate']`, error="invalid_token").
+ */
+function isAuthChallenge(envelope: Envelope): boolean {
+	const challenge = envelope.result?._meta?.['mcp/www_authenticate'];
+	const values = Array.isArray(challenge) ? challenge : [challenge];
+	return (
+		values.some((value) => typeof value === 'string' && value.trim() !== '') ||
+		/invalid_token/.test(envelope.error?.message ?? '')
+	);
 }
 
 /** Use the posting profile for features whose current contract lives in MCP. */
@@ -55,6 +70,11 @@ export async function postingTool(
 		?.filter((entry) => entry.type === 'text')
 		.map((entry) => entry.text)
 		.join('\n');
+	if ((envelope.error || result?.isError) && isAuthChallenge(envelope)) {
+		throw invalidApiKeyError.call(this, {
+			message: text || envelope.error?.message,
+		});
+	}
 	if (envelope.error || result?.isError) {
 		throw new NodeOperationError(
 			this.getNode(),
