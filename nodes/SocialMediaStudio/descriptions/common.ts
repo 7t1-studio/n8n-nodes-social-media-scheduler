@@ -83,6 +83,19 @@ export function getResourceId(
 	);
 }
 
+/**
+ * The Limit value, or `undefined` when Return All is on. A limit above the
+ * API page size of 100 is read page by page.
+ */
+export function listLimit(
+	this: IExecuteFunctions,
+	itemIndex: number,
+): number | undefined {
+	return this.getNodeParameter('returnAll', itemIndex, false)
+		? undefined
+		: (this.getNodeParameter('limit', itemIndex, 50) as number);
+}
+
 export function parseJsonParameter(
 	this: IExecuteFunctions,
 	name: string,

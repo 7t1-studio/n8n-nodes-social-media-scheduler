@@ -2,18 +2,21 @@ import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
 import {
 	getResourceId,
+	listLimit,
 	parseJsonParameter,
 	resourceLocator,
 	unsupportedOperation,
 } from './common';
 import { parseFileIds, postingTool } from '../PostingFunctions';
 import {
+	platformNames,
 	POST_STATUS_OPTIONS,
 	POST_TYPE_OPTIONS,
 	SOCIAL_MEDIA_OPTIONS,
 } from '../types';
 import {
 	applyPostOptions,
+	buildFiles,
 	FIRST_COMMENT_PLATFORMS,
 	THREAD_PLATFORMS,
 	TIKTOK_PRIVACY_LEVEL_OPTIONS,
@@ -103,22 +106,15 @@ export const postOperations: INodeProperties[] = [
 ];
 
 export const postFields: INodeProperties[] = [
+	// Create only: the API cannot change the media of an existing post.
 	{
 		displayName: 'Media Library File IDs',
 		name: 'libraryFileIds',
 		type: 'string',
 		default: '',
-		displayOptions: showFor(['create', 'update']),
+		displayOptions: showFor(['create']),
 		description:
 			'Comma-separated uploaded library UUIDs. Use Media → Upload to Library, then verify the upload.',
-	},
-	{
-		displayName: 'Clear Media',
-		name: 'clearMedia',
-		type: 'boolean',
-		default: false,
-		displayOptions: showFor(['update']),
-		description: 'Whether to remove all existing media attachments',
 	},
 	{
 		displayName: 'Clear Thread',
@@ -304,7 +300,7 @@ export const postFields: INodeProperties[] = [
 		typeOptions: { rows: 2 },
 		default: '',
 		displayOptions: showFor(['create', 'update', 'schedule']),
-		description: `One comment posted automatically under the post right after it publishes, for hashtags or a link. Supported on ${FIRST_COMMENT_PLATFORMS.join(', ')}; another platform publishes the post without the comment and returns a warning. Leave empty to keep any existing comment. With Thread Parts the comment goes under the last part of the chain.`,
+		description: `One comment posted automatically under the post right after it publishes, for hashtags or a link. Supported on ${platformNames(FIRST_COMMENT_PLATFORMS)}; another platform publishes the post without the comment and returns a warning. Leave empty to keep any existing comment. With Thread Parts the comment goes under the last part of the chain.`,
 	},
 	{
 		displayName: 'TikTok Options',
@@ -314,7 +310,7 @@ export const postFields: INodeProperties[] = [
 		default: {},
 		displayOptions: showFor(['create', 'update', 'schedule']),
 		description:
-			'TikTok only. TikTok rejects every post that carries no privacy level. Other platforms ignore these options.',
+			'TikTok only. TikTok rejects every post that carries no privacy level. On create the node sends these options only when Platform is TikTok. On update or schedule, Social Media Studio rejects them for a post on another platform.',
 		options: [
 			{
 				displayName: 'Allow Comments',
@@ -504,9 +500,7 @@ export async function executePost(
 				itemIndex,
 				'',
 			) as string;
-			const filesParam = this.getNodeParameter('files', itemIndex, {}) as {
-				file?: IDataObject[];
-			};
+			const files = buildFiles(this.getNodeParameter('files', itemIndex, {}));
 			const metaData = parseJsonParameter.call(
 				this,
 				'metaData',
@@ -517,13 +511,14 @@ export async function executePost(
 			const body: IDataObject = { text, socialMedia, postType };
 			if (accountId) body.accountId = accountId;
 			if (scheduledAt) body.scheduledAt = scheduledAt;
-			if (filesParam?.file?.length) body.files = filesParam.file;
+			if (files) body.files = files;
 			if (metaData) body.metaData = metaData;
 
 			applyPostOptions(body, {
 				threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
 				firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
+				platform: socialMedia,
 			});
 
 			applyAttachmentOptions.call(this, body, itemIndex);
@@ -536,11 +531,6 @@ export async function executePost(
 		}
 
 		case 'getMany': {
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
 			const filters = this.getNodeParameter(
 				'filters',
 				itemIndex,
@@ -551,27 +541,13 @@ export async function executePost(
 			if (filters.status) qs.status = filters.status;
 			if (filters.socialMedia) qs.socialMedia = filters.socialMedia;
 
-			if (returnAll) {
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/posts',
-					qs,
-				)) as IDataObject[];
-			}
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const response = (await soMeApiRequest.call(
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/posts',
-				undefined,
-				{
-					...qs,
-					page: 1,
-					limit,
-				},
-			)) as { data?: IDataObject[] };
-			return response?.data ?? [];
+				qs,
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		}
 
 		case 'getCalendar': {
@@ -612,7 +588,7 @@ export async function executePost(
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
 			});
 
-			applyAttachmentOptions.call(this, body, itemIndex);
+			applyAttachmentOptions.call(this, body, itemIndex, false);
 			return await soMeApiRequest.call(
 				this,
 				'PATCH',
@@ -650,7 +626,7 @@ export async function executePost(
 				firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
 				tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
 			});
-			applyAttachmentOptions.call(this, body, itemIndex);
+			applyAttachmentOptions.call(this, body, itemIndex, false);
 			return await postingTool.call(this, 'schedule_post', {
 				id: postId,
 				...body,
@@ -689,16 +665,25 @@ export async function executePost(
 	}
 }
 
+/**
+ * Adds the media library files and the clear switches. Post Update and
+ * Schedule pass `includeMedia: false`: PATCH /v1/posts/:id drops `fileIds`,
+ * so the node does not offer media there.
+ */
 export function applyAttachmentOptions(
 	this: IExecuteFunctions,
 	body: IDataObject,
 	itemIndex: number,
+	includeMedia = true,
 ): void {
-	const ids = parseFileIds(
-		this.getNodeParameter('libraryFileIds', itemIndex, '') as string,
-	);
-	if (ids.length) body.fileIds = ids;
-	if (this.getNodeParameter('clearMedia', itemIndex, false)) body.fileIds = [];
+	if (includeMedia) {
+		const ids = parseFileIds(
+			this.getNodeParameter('libraryFileIds', itemIndex, '') as string,
+		);
+		if (ids.length) body.fileIds = ids;
+		if (this.getNodeParameter('clearMedia', itemIndex, false))
+			body.fileIds = [];
+	}
 	if (this.getNodeParameter('clearThread', itemIndex, false))
 		body.threadParts = [];
 	if (this.getNodeParameter('clearFirstComment', itemIndex, false))

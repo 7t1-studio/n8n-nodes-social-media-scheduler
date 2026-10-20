@@ -7,7 +7,12 @@ import {
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
 import { POST_TYPE_OPTIONS, SOCIAL_MEDIA_OPTIONS } from '../types';
 import { postingTool } from '../PostingFunctions';
-import { getResourceId, resourceLocator, unsupportedOperation } from './common';
+import {
+	getResourceId,
+	listLimit,
+	resourceLocator,
+	unsupportedOperation,
+} from './common';
 
 const folderLocator = (
 	displayName: string,
@@ -394,22 +399,14 @@ export async function executeMedia(
 				id: getResourceId.call(this, 'fileId', itemIndex),
 				verifyUpload: this.getNodeParameter('verifyUpload', itemIndex, false),
 			});
-		case 'listFolders': {
-			if (this.getNodeParameter('returnAll', itemIndex, false))
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/media/folders',
-				)) as IDataObject[];
-			const result = (await soMeApiRequest.call(
+		case 'listFolders':
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/media/folders',
-				undefined,
-				{ page: 1, limit: this.getNodeParameter('limit', itemIndex, 50) },
-			)) as { data?: IDataObject[] };
-			return result.data ?? [];
-		}
+				{},
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		case 'presignLibraryUpload':
 		case 'uploadLibrary': {
 			const folderId = getResourceId.call(this, 'libraryFolderId', itemIndex);
@@ -567,52 +564,23 @@ export async function executeMedia(
 				qs,
 			);
 		}
-		case 'list': {
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
-			if (returnAll)
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/media',
-				)) as IDataObject[];
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const r = (await soMeApiRequest.call(
+		case 'list':
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/media',
-				undefined,
-				{ page: 1, limit },
-			)) as { data?: IDataObject[] };
-			return r?.data ?? [];
-		}
+				{},
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		case 'search': {
 			const query = this.getNodeParameter('query', itemIndex) as string;
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
-			if (returnAll) {
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/media/files/search',
-					{ name: query },
-				)) as IDataObject[];
-			}
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const r = (await soMeApiRequest.call(
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/media/files/search',
-				undefined,
-				{ name: query, page: 1, limit },
-			)) as { data?: IDataObject[] };
-			return r?.data ?? [];
+				{ name: query },
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		}
 		case 'delete': {
 			const id = getResourceId.call(this, 'fileId', itemIndex);
@@ -664,7 +632,8 @@ export async function executeMedia(
 				itemIndex,
 			);
 			const body: IDataObject = { name };
-			if (parentFolderId) body.parentFolderId = parentFolderId;
+			// The parameter keeps its 0.2.0 name; the API field is parentId.
+			if (parentFolderId) body.parentId = parentFolderId;
 			return await soMeApiRequest.call(this, 'POST', '/v1/media/folders', body);
 		}
 		case 'deleteFolder': {
@@ -693,7 +662,7 @@ export async function executeMedia(
 				this,
 				'PATCH',
 				`/v1/media/folders/${id}/move`,
-				{ parentFolderId: targetFolderId || null },
+				{ parentId: targetFolderId || null },
 			);
 		}
 		default:

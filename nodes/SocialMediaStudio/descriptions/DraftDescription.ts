@@ -6,6 +6,7 @@ import { applyPostOptions } from '../postOptions';
 import { applyAttachmentOptions, postFields } from './PostDescription';
 import {
 	getResourceId,
+	listLimit,
 	parseJsonParameter,
 	resourceIdFrom,
 	resourceLocator,
@@ -62,7 +63,6 @@ export const draftFields: INodeProperties[] = [
 				'tiktok',
 				'libraryFileIds',
 				'metaData',
-				'clearMedia',
 				'clearThread',
 				'clearFirstComment',
 			].includes(field.name),
@@ -77,6 +77,15 @@ export const draftFields: INodeProperties[] = [
 						: ['create', 'update'],
 			),
 		})),
+	// Drafts keep their media editable through MCP update_draft, unlike posts.
+	{
+		displayName: 'Clear Media',
+		name: 'clearMedia',
+		type: 'boolean',
+		default: false,
+		displayOptions: showFor(['update']),
+		description: 'Whether to remove all existing media attachments',
+	},
 	resourceLocator({
 		displayName: 'Draft',
 		name: 'draftId',
@@ -200,35 +209,21 @@ export async function executeDraft(
 			};
 			const accountId = getResourceId.call(this, 'accountId', itemIndex);
 			if (accountId) body.accountId = accountId;
-			applyDraftOptions.call(this, body, itemIndex);
+			applyDraftOptions.call(this, body, itemIndex, body.socialMedia);
 			return await postingTool.call(this, 'create_draft', body);
 		}
 		case 'get': {
 			const id = getResourceId.call(this, 'draftId', itemIndex);
 			return await soMeApiRequest.call(this, 'GET', `/v1/drafts/${id}`);
 		}
-		case 'getMany': {
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
-			if (returnAll)
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/drafts',
-				)) as IDataObject[];
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const r = (await soMeApiRequest.call(
+		case 'getMany':
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/drafts',
-				undefined,
-				{ page: 1, limit },
-			)) as { data?: IDataObject[] };
-			return r?.data ?? [];
-		}
+				{},
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		case 'update': {
 			const id = getResourceId.call(this, 'draftId', itemIndex);
 			const updateFields = this.getNodeParameter(
@@ -273,6 +268,7 @@ function applyDraftOptions(
 	this: IExecuteFunctions,
 	body: IDataObject,
 	itemIndex: number,
+	platform?: unknown,
 ): void {
 	const metadata = parseJsonParameter.call(
 		this,
@@ -285,6 +281,7 @@ function applyDraftOptions(
 		threadParts: this.getNodeParameter('threadParts', itemIndex, {}),
 		firstComment: this.getNodeParameter('firstComment', itemIndex, ''),
 		tiktok: this.getNodeParameter('tiktok', itemIndex, {}),
+		platform,
 	});
 	applyAttachmentOptions.call(this, body, itemIndex);
 }

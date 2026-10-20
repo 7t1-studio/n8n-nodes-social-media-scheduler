@@ -22,6 +22,17 @@ export const SOCIAL_MEDIA_OPTIONS = [
 	{ name: 'Slack', value: 'SLACK' },
 ] as const;
 
+/** Display names for a list of platform values, for help texts. */
+export function platformNames(values: readonly string[]): string {
+	return values
+		.map(
+			(value) =>
+				SOCIAL_MEDIA_OPTIONS.find((option) => option.value === value)?.name ??
+				value,
+		)
+		.join(', ');
+}
+
 export const POST_TYPE_OPTIONS = [
 	{ name: 'Text', value: 'TEXT' },
 	{ name: 'Image', value: 'IMAGE' },

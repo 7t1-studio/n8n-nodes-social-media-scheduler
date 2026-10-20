@@ -1,7 +1,12 @@
 import { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 import { soMeApiRequest, soMeApiRequestAllItems } from '../GenericFunctions';
 import { postingTool } from '../PostingFunctions';
-import { getResourceId, resourceLocator, unsupportedOperation } from './common';
+import {
+	getResourceId,
+	listLimit,
+	resourceLocator,
+	unsupportedOperation,
+} from './common';
 
 const showFor = (operations: string[]) => ({
 	show: { resource: ['socialAccount'], operation: operations },
@@ -108,28 +113,14 @@ export async function executeSocialAccount(
 			const id = getResourceId.call(this, 'accountId', itemIndex);
 			return await soMeApiRequest.call(this, 'GET', `/v1/accounts/${id}`);
 		}
-		case 'getMany': {
-			const returnAll = this.getNodeParameter(
-				'returnAll',
-				itemIndex,
-				false,
-			) as boolean;
-			if (returnAll)
-				return (await soMeApiRequestAllItems.call(
-					this,
-					'GET',
-					'/v1/accounts',
-				)) as IDataObject[];
-			const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
-			const r = (await soMeApiRequest.call(
+		case 'getMany':
+			return (await soMeApiRequestAllItems.call(
 				this,
 				'GET',
 				'/v1/accounts',
-				undefined,
-				{ page: 1, limit },
-			)) as { data?: IDataObject[] };
-			return r?.data ?? [];
-		}
+				{},
+				listLimit.call(this, itemIndex),
+			)) as IDataObject[];
 		default:
 			throw unsupportedOperation.call(this, 'socialAccount', operation);
 	}
